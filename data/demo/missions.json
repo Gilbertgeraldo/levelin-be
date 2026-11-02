@@ -1,0 +1,199 @@
+{
+  "_note": "Bank misi demo. answer_key RAHASIA: hanya dipakai server untuk cek objektif.",
+  "missions": [
+    {
+      "slug": "rekap-penjualan-mingguan",
+      "title": "Rekap Penjualan Mingguan",
+      "summary": "Cek ulang rekap buatan AI dan siapkan ringkasan untuk rapat Senin.",
+      "brief": "Bu Rina, Kepala Cabang, minta rekap penjualan minggu ini dari 4 wilayah sebelum rapat Senin. Hitung total penjualan, tentukan wilayah dengan penjualan tertinggi, dan hitung perubahan (dalam persen) dibanding total minggu lalu. Rekan kerjamu sudah membuat ringkasan dengan AI, tapi angkanya belum dicek. Periksa ringkasan itu, jelaskan kesalahannya, lalu tulis ringkasan maksimal 3 kalimat untuk Bu Rina beserta satu saran tindak lanjut.",
+      "boss_persona": {"name": "Bu Rina", "role": "Kepala Cabang", "style": "ramah, to the point, suka angka yang rapi"},
+      "simulation_data": {
+        "penjualan_minggu_ini": [
+          {"wilayah": "Utara", "penjualan_rp": 42500000},
+          {"wilayah": "Selatan", "penjualan_rp": 38750000},
+          {"wilayah": "Timur", "penjualan_rp": 51200000},
+          {"wilayah": "Barat", "penjualan_rp": 29550000}
+        ],
+        "total_minggu_lalu_rp": 150000000,
+        "ringkasan_ai_rekan": "Total penjualan minggu ini Rp165 juta, naik 10% dari minggu lalu. Wilayah tertinggi adalah Utara."
+      },
+      "answer_fields": [
+        {"id": "total_penjualan", "label": "Total penjualan minggu ini (Rp)", "type": "number"},
+        {"id": "wilayah_tertinggi", "label": "Wilayah dengan penjualan tertinggi", "type": "choice", "options": ["Utara", "Selatan", "Timur", "Barat"]},
+        {"id": "perubahan_persen", "label": "Perubahan dibanding minggu lalu (%)", "type": "number"},
+        {"id": "koreksi_ringkasan_ai", "label": "Apa saja kesalahan di ringkasan AI rekanmu?", "type": "long_text"},
+        {"id": "ringkasan", "label": "Ringkasan untuk Bu Rina (maks. 3 kalimat) dan saran tindak lanjut", "type": "long_text"}
+      ],
+      "answer_key": [
+        {"id": "k_total", "field_id": "total_penjualan", "type": "number", "expected": 162000000, "tolerance": 1000, "weight": 2, "hint": "Jumlahkan lagi penjualan keempat wilayah satu per satu."},
+        {"id": "k_wilayah", "field_id": "wilayah_tertinggi", "type": "choice", "expected": "Timur", "weight": 1, "hint": "Bandingkan lagi angka penjualan tiap wilayah."},
+        {"id": "k_persen", "field_id": "perubahan_persen", "type": "number", "expected": 8, "tolerance": 0.1, "weight": 1, "hint": "Pakai (minggu ini - minggu lalu) / minggu lalu x 100."},
+        {"id": "k_koreksi", "field_id": "koreksi_ringkasan_ai", "type": "contains", "expected": ["162", "8", "timur"], "min_matches": 2, "weight": 1, "label": "Koreksi ringkasan AI", "hint": "Periksa total, persentase, dan wilayah di ringkasan AI."}
+      ],
+      "rubric": [
+        {"id": "r_verifikasi", "criterion": "Akurasi dan verifikasi", "description": "Angka dicek ulang; kesalahan ringkasan AI ditemukan dan dijelaskan dengan jelas.", "weight": 2, "keywords": ["salah", "seharusnya", "162", "timur"]},
+        {"id": "r_ringkasan", "criterion": "Ringkasan untuk atasan", "description": "Ringkas (maks. 3 kalimat), menyebut angka kunci dan artinya bagi bisnis.", "weight": 1.5, "keywords": ["total", "naik", "timur"]},
+        {"id": "r_saran", "criterion": "Saran tindak lanjut", "description": "Ada satu saran konkret dan masuk akal berdasarkan data.", "weight": 1, "keywords": ["saran", "barat", "fokus"]}
+      ],
+      "occupation_isco_codes": ["4110", "4120", "4311"],
+      "skills": ["Mengolah data dengan spreadsheet", "Memverifikasi dan menyunting keluaran AI", "Komunikasi tertulis profesional"],
+      "difficulty": 1,
+      "est_minutes": 25,
+      "pass_score": 70,
+      "objective_weight": 0.5
+    },
+    {
+      "slug": "balas-keluhan-pelanggan",
+      "title": "Balas Keluhan Pelanggan",
+      "summary": "Tentukan kompensasi sesuai kebijakan dan tulis balasan yang berempati.",
+      "brief": "Pak Dimas, supervisor layanan pelanggan, meneruskan email keluhan dari Ibu Sari: paketnya terlambat 5 hari dan ongkos kirimnya tertagih dua kali. Tentukan kompensasi sesuai kebijakan perusahaan, tulis email balasan untuk Ibu Sari, lalu tulis prompt yang akan kamu pakai bila ingin dibantu AI menyusun draf balasan serupa lain kali.",
+      "boss_persona": {"name": "Pak Dimas", "role": "Supervisor Layanan Pelanggan", "style": "tenang, sabar, menekankan empati"},
+      "simulation_data": {
+        "email_pelanggan": "Saya kecewa sekali. Pesanan INV-20817 terlambat 5 hari dan saya lihat ongkirnya ditagih dua kali. Tolong diselesaikan.",
+        "pesanan": {"nomor": "INV-20817", "ongkir_rp": 18000, "ongkir_ditagih_rp": 36000, "keterlambatan_hari": 5},
+        "kebijakan": {
+          "keterlambatan_lebih_dari_3_hari": "voucher belanja Rp25.000",
+          "tagihan_ganda": "refund selisih tagihan ke metode pembayaran awal dalam 3 hari kerja",
+          "nada": "minta maaf dengan tulus, tidak menyalahkan kurir"
+        }
+      },
+      "answer_fields": [
+        {"id": "kompensasi", "label": "Kompensasi yang diberikan", "type": "choice", "options": ["Voucher Rp25.000 saja", "Refund Rp18.000 saja", "Voucher Rp25.000 dan refund Rp18.000", "Refund penuh Rp36.000"]},
+        {"id": "jumlah_refund", "label": "Jumlah refund (Rp)", "type": "number"},
+        {"id": "email_balasan", "label": "Email balasan untuk Ibu Sari", "type": "long_text"},
+        {"id": "prompt_ai", "label": "Prompt AI untuk menyusun draf balasan serupa", "type": "long_text"}
+      ],
+      "answer_key": [
+        {"id": "k_kompensasi", "field_id": "kompensasi", "type": "choice", "expected": "Voucher Rp25.000 dan refund Rp18.000", "weight": 2, "hint": "Cek lagi dua aturan kebijakan yang berlaku untuk kasus ini."},
+        {"id": "k_refund", "field_id": "jumlah_refund", "type": "number", "expected": 18000, "tolerance": 0, "weight": 1, "leak_guard": false, "hint": "Refund hanya untuk kelebihan tagihan."},
+        {"id": "k_email", "field_id": "email_balasan", "type": "contains", "expected": ["maaf", "INV-20817"], "min_matches": 2, "weight": 1, "label": "Isi wajib email", "hint": "Pastikan ada permintaan maaf dan nomor pesanan."}
+      ],
+      "rubric": [
+        {"id": "r_empati", "criterion": "Empati dan nada", "description": "Permintaan maaf tulus, tidak menyalahkan pihak lain, sopan.", "weight": 1.5, "keywords": ["maaf", "mohon", "terima kasih"]},
+        {"id": "r_solusi", "criterion": "Solusi sesuai kebijakan", "description": "Menjelaskan voucher dan refund beserta waktunya dengan jelas.", "weight": 1.5, "keywords": ["voucher", "refund", "3 hari kerja"]},
+        {"id": "r_prompt", "criterion": "Kualitas prompt AI", "description": "Prompt memberi konteks, kebijakan, nada, dan format yang diinginkan, tanpa data pribadi berlebihan.", "weight": 1, "keywords": ["konteks", "kebijakan", "nada", "format"]}
+      ],
+      "occupation_isco_codes": ["4222", "4110"],
+      "skills": ["Penanganan keluhan pelanggan", "Empati dan layanan pelanggan", "Menulis prompt AI yang efektif", "Komunikasi tertulis profesional"],
+      "difficulty": 1,
+      "est_minutes": 20,
+      "pass_score": 70,
+      "objective_weight": 0.4
+    },
+    {
+      "slug": "rekonsiliasi-bank-oktober",
+      "title": "Rekonsiliasi Bank Akhir Bulan",
+      "summary": "Cocokkan saldo buku dengan rekening koran dan koreksi draf AI yang keliru.",
+      "brief": "Bu Maya dari tim keuangan minta kamu mencocokkan saldo kas di buku dengan rekening koran per 31 Oktober. Temukan penyesuaian yang perlu dicatat di buku, hitung saldo kas yang benar setelah penyesuaian, dan beri catatan singkat atas draf rekonsiliasi buatan AI.",
+      "boss_persona": {"name": "Bu Maya", "role": "Supervisor Keuangan", "style": "teliti dan suka penjelasan langkah demi langkah"},
+      "simulation_data": {
+        "saldo_buku_rp": 83825000,
+        "saldo_rekening_koran_rp": 86150000,
+        "di_rekening_koran_belum_di_buku": [
+          {"keterangan": "Bunga bank", "jumlah_rp": 350000},
+          {"keterangan": "Biaya administrasi bank", "jumlah_rp": -25000},
+          {"keterangan": "Transfer masuk dari pelanggan PT Sinar", "jumlah_rp": 1200000}
+        ],
+        "di_buku_belum_di_rekening_koran": [
+          {"keterangan": "Cek beredar no. 0412 untuk pemasok", "jumlah_rp": -800000}
+        ],
+        "draf_ai": "Saldo kas yang benar adalah Rp86.150.000 karena saldo bank selalu benar."
+      },
+      "answer_fields": [
+        {"id": "total_penyesuaian_buku", "label": "Total penyesuaian bersih di buku (Rp)", "type": "number"},
+        {"id": "saldo_kas_disesuaikan", "label": "Saldo kas setelah penyesuaian (Rp)", "type": "number"},
+        {"id": "daftar_penyesuaian", "label": "Daftar penyesuaian yang perlu dicatat di buku", "type": "long_text"},
+        {"id": "catatan_draf_ai", "label": "Catatanmu atas draf AI", "type": "long_text"}
+      ],
+      "answer_key": [
+        {"id": "k_penyesuaian", "field_id": "total_penyesuaian_buku", "type": "number", "expected": 1525000, "tolerance": 0, "weight": 1, "hint": "Jumlahkan semua item yang ada di rekening koran tapi belum di buku."},
+        {"id": "k_saldo", "field_id": "saldo_kas_disesuaikan", "type": "number", "expected": 85350000, "tolerance": 0, "weight": 2, "hint": "Saldo buku dan saldo bank harus bertemu di angka yang sama setelah penyesuaian."},
+        {"id": "k_daftar", "field_id": "daftar_penyesuaian", "type": "contains", "expected": ["bunga", "administrasi", "sinar"], "min_matches": 3, "weight": 1, "label": "Kelengkapan daftar penyesuaian", "hint": "Ada tiga item yang perlu dicatat di buku."}
+      ],
+      "rubric": [
+        {"id": "r_teliti", "criterion": "Ketelitian rekonsiliasi", "description": "Membedakan penyesuaian sisi buku dan sisi bank (termasuk cek beredar) dengan benar.", "weight": 2, "keywords": ["cek beredar", "bunga", "administrasi", "sinar"]},
+        {"id": "r_jelas", "criterion": "Kejelasan penjelasan", "description": "Langkah perhitungan mudah diikuti atasan.", "weight": 1, "keywords": ["penyesuaian", "saldo", "jurnal"]},
+        {"id": "r_ai", "criterion": "Verifikasi draf AI", "description": "Menjelaskan mengapa draf AI keliru dan apa yang terlewat.", "weight": 1, "keywords": ["salah", "keliru", "cek beredar"]}
+      ],
+      "occupation_isco_codes": ["4311"],
+      "skills": ["Rekonsiliasi bank", "Pembukuan dan jurnal akuntansi", "Memverifikasi dan menyunting keluaran AI"],
+      "difficulty": 2,
+      "est_minutes": 35,
+      "pass_score": 70,
+      "objective_weight": 0.5
+    },
+    {
+      "slug": "evaluasi-iklan-kampanye",
+      "title": "Evaluasi Iklan dan Caption Baru",
+      "summary": "Pilih iklan paling efisien dari data, lalu tulis caption baru.",
+      "brief": "Mas Arif, Marketing Lead, minta kamu menilai tiga iklan minggu lalu. Tentukan iklan dengan biaya per pembelian (CPA) terendah, hitung CPA-nya, jelaskan alasannya, lalu tulis satu caption baru untuk iklan tersebut sesuai panduan brand.",
+      "boss_persona": {"name": "Mas Arif", "role": "Marketing Lead", "style": "energik, suka data, tidak suka klaim berlebihan"},
+      "simulation_data": {
+        "iklan": [
+          {"nama": "Iklan A", "biaya_rp": 2000000, "klik": 1600, "pembelian": 40},
+          {"nama": "Iklan B", "biaya_rp": 1500000, "klik": 900, "pembelian": 45},
+          {"nama": "Iklan C", "biaya_rp": 2500000, "klik": 2500, "pembelian": 25}
+        ],
+        "panduan_brand": "Nada hangat dan jujur. Hindari kata 'terbaik' dan 'termurah'. Maksimal 150 karakter. Sertakan ajakan bertindak."
+      },
+      "answer_fields": [
+        {"id": "iklan_terbaik", "label": "Iklan dengan CPA terendah", "type": "choice", "options": ["Iklan A", "Iklan B", "Iklan C"]},
+        {"id": "cpa_terbaik", "label": "CPA iklan tersebut (Rp)", "type": "number"},
+        {"id": "alasan", "label": "Alasan dan insight dari data", "type": "long_text"},
+        {"id": "caption", "label": "Caption baru (maks. 150 karakter)", "type": "text"}
+      ],
+      "answer_key": [
+        {"id": "k_iklan", "field_id": "iklan_terbaik", "type": "choice", "expected": "Iklan B", "weight": 1, "hint": "Bandingkan biaya dibagi jumlah pembelian, bukan jumlah klik."},
+        {"id": "k_cpa", "field_id": "cpa_terbaik", "type": "number", "expected": 33333.33, "tolerance": 1, "weight": 1, "hint": "CPA = biaya / pembelian."},
+        {"id": "k_caption", "field_id": "caption", "type": "regex", "expected": "^(?!.*\\b(terbaik|termurah)\\b).{10,150}$", "weight": 1, "label": "Caption sesuai panduan", "hint": "Cek lagi panjang caption dan kata yang dilarang panduan brand."}
+      ],
+      "rubric": [
+        {"id": "r_data", "criterion": "Berbasis data", "description": "Alasan memakai CPA dan membandingkan dengan metrik lain (klik vs pembelian).", "weight": 1.5, "keywords": ["cpa", "pembelian", "klik", "biaya"]},
+        {"id": "r_caption", "criterion": "Kualitas caption", "description": "Hangat, jujur, ada ajakan bertindak, sesuai panduan brand.", "weight": 1.5, "keywords": ["yuk", "coba", "sekarang"]},
+        {"id": "r_insight", "criterion": "Insight lanjutan", "description": "Memberi satu ide uji coba berikutnya yang masuk akal.", "weight": 1, "keywords": ["uji", "coba", "anggaran"]}
+      ],
+      "occupation_isco_codes": ["2431"],
+      "skills": ["Analisis kampanye digital", "Penulisan konten pemasaran", "Menulis prompt AI yang efektif"],
+      "difficulty": 2,
+      "est_minutes": 30,
+      "pass_score": 70,
+      "objective_weight": 0.4
+    },
+    {
+      "slug": "saring-kandidat-adil",
+      "title": "Saring Kandidat dengan Adil",
+      "summary": "Buat shortlist sesuai kriteria dan kenali bias pada saran alat AI.",
+      "brief": "Bu Lestari, HR Manager, membuka lowongan Staf Administrasi. Kriteria wajib: pengalaman minimal 2 tahun dan kemampuan Excel mahir; domisili tidak menjadi syarat karena kerja hybrid. Alat penyaring AI sudah memberi saran, tapi Bu Lestari ingin kamu memeriksanya. Tulis shortlist kandidat yang memenuhi kriteria, jelaskan masalah pada saran AI, dan tulis ulang satu paragraf deskripsi lowongan yang inklusif.",
+      "boss_persona": {"name": "Bu Lestari", "role": "HR Manager", "style": "tegas soal keadilan proses rekrutmen"},
+      "simulation_data": {
+        "kandidat": [
+          {"nama": "Andi", "pengalaman_tahun": 3, "excel": "mahir", "domisili": "Bekasi", "kampus": "Politeknik swasta"},
+          {"nama": "Bunga", "pengalaman_tahun": 1, "excel": "mahir", "domisili": "Jakarta", "kampus": "Universitas negeri ternama"},
+          {"nama": "Citra", "pengalaman_tahun": 4, "excel": "dasar", "domisili": "Jakarta", "kampus": "Universitas swasta"},
+          {"nama": "Dodi", "pengalaman_tahun": 2, "excel": "mahir", "domisili": "Jakarta", "kampus": "SMK"}
+        ],
+        "saran_alat_ai": "Prioritaskan Bunga karena lulusan kampus ternama dan tinggal dekat kantor. Andi kurang cocok karena domisili di luar Jakarta."
+      },
+      "answer_fields": [
+        {"id": "shortlist", "label": "Nama kandidat yang lolos (pisahkan dengan koma)", "type": "text"},
+        {"id": "catatan_bias_ai", "label": "Masalah pada saran alat AI", "type": "long_text"},
+        {"id": "deskripsi_lowongan", "label": "Paragraf deskripsi lowongan yang inklusif", "type": "long_text"}
+      ],
+      "answer_key": [
+        {"id": "k_shortlist", "field_id": "shortlist", "type": "regex", "expected": "(?s)^(?!.*\\b(bunga|citra)\\b).*\\b(andi\\b.*\\bdodi|dodi\\b.*\\bandi)\\b", "weight": 2, "label": "Shortlist sesuai kriteria", "hint": "Cocokkan setiap kandidat dengan dua kriteria wajib saja."},
+        {"id": "k_bias", "field_id": "catatan_bias_ai", "type": "contains", "expected": ["kampus", "domisili", "bias", "kriteria"], "min_matches": 2, "weight": 1, "label": "Identifikasi bias", "hint": "Lihat lagi alasan yang dipakai alat AI, apakah ada di kriteria?"}
+      ],
+      "rubric": [
+        {"id": "r_kriteria", "criterion": "Konsisten pada kriteria", "description": "Keputusan hanya berdasarkan kriteria wajib dan dijelaskan per kandidat.", "weight": 1.5, "keywords": ["kriteria", "pengalaman", "excel"]},
+        {"id": "r_bias", "criterion": "Kesadaran bias AI", "description": "Menjelaskan bias kampus/domisili pada saran AI dan risikonya.", "weight": 1.5, "keywords": ["bias", "kampus", "domisili", "adil"]},
+        {"id": "r_inklusif", "criterion": "Deskripsi lowongan inklusif", "description": "Bahasa netral, syarat relevan, tidak menyaring berdasarkan latar belakang yang tidak relevan.", "weight": 1, "keywords": ["terbuka", "hybrid", "pengalaman"]}
+      ],
+      "occupation_isco_codes": ["2423"],
+      "skills": ["Rekrutmen dan seleksi", "Etika dan keamanan data saat memakai AI", "Memverifikasi dan menyunting keluaran AI"],
+      "difficulty": 3,
+      "est_minutes": 35,
+      "pass_score": 70,
+      "objective_weight": 0.4
+    }
+  ]
+}
