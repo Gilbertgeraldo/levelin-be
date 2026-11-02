@@ -1,4 +1,5 @@
-import json
+"""Misi latihan kerja: rekomendasi, percobaan, atasan AI, dan penilaian (logika prototipe Tim Hearz)."""
+
 import random
 import re
 import uuid
@@ -9,24 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.errors import ApiError, not_found
 from app.db.base import utcnow
-from app.models import (
-    Attempt,
-    AttemptMessage,
-    Mission,
-    Occupation,
-    PassportEntry,
-    Plan,
-    Profile,
-    Review,
-    User,
-)
-from app.services import grading, prompts
+from app.models import Attempt, AttemptMessage, Audit, Mission, PassportEntry, Review, TaskKind, User
+from app.services import grading, prompts, scoring
 from app.services.audits import latest_audit, refresh_readiness
 from app.services.billing import mission_quota
 from app.services.llm import LLMCallInfo, LLMError, LLMService
-from app.services.passport import proven_skill_ids
+from app.services.textutil import to_text
 
 HISTORY_LIMIT = 20
+EXCERPT_CHARS = 280
 
 
 def visible_filter(user: User):
@@ -68,35 +60,49 @@ async def mission_statuses(db: AsyncSession, user_id: uuid.UUID, mission_ids: li
     return out
 
 
-async def recommendation_context(db: AsyncSession, user: User) -> tuple[set[int], str | None]:
-    """Skill gap dari rencana aktif dan kode ISCO pengguna (dari profil atau audit terbaru)."""
-    plan = await db.scalar(
-        select(Plan).where(Plan.user_id == user.id, Plan.status == "active").order_by(Plan.created_at.desc()).limit(1)
-    )
-    proven = await proven_skill_ids(db, user.id)
-    gap = {sid for sid in (plan.target_skill_ids if plan else [])} - proven
-    isco = None
+# ---------- Rekomendasi ----------
+
+
+def exposed_kinds(audit: Audit | None) -> list[tuple[str, float]]:
+    """Jenis pekerjaan dengan jam terpapar AI (auto + assist) terbesar lebih dulu."""
+    if audit is None:
+        return []
+    hours: dict[str, float] = {}
+    for t in audit.tasks:
+        kind = t.template.kind if t.template else None
+        if kind and t.group in scoring.EXPOSED:
+            hours[kind] = hours.get(kind, 0) + t.hours_per_week
+    return sorted(hours.items(), key=lambda kv: kv[1], reverse=True)
+
+
+async def recommended_order(db: AsyncSession, user: User) -> tuple[list[Mission], dict[uuid.UUID, str]]:
+    """Urutan misi seperti prototipe: misi untuk jenis tugas paling terpapar dulu, lalu sisanya.
+
+    Mengembalikan (semua misi terurut, alasan rekomendasi per misi yang direkomendasikan).
+    """
+    missions = list((await db.scalars(select(Mission).where(*visible_filter(user)).order_by(Mission.title))).all())
+    by_slug = {m.slug: m for m in missions}
+    kinds = {k.code: k for k in (await db.scalars(select(TaskKind))).all()}
     audit = await latest_audit(db, user.id)
-    if audit is not None:
-        isco = audit.isco_code
-    else:
-        profile = await db.get(Profile, user.id)
-        if profile and profile.occupation_code:
-            occ = await db.get(Occupation, profile.occupation_code)
-            isco = occ.isco_code if occ else None
-    return gap, isco
+
+    ordered: list[Mission] = []
+    reasons: dict[uuid.UUID, str] = {}
+    for kind_code, _ in exposed_kinds(audit):
+        kind = kinds.get(kind_code)
+        mission = by_slug.get(kind.mission_slug) if kind and kind.mission_slug else None
+        if mission is not None and mission not in ordered:
+            ordered.append(mission)
+            reasons[mission.id] = f"Melatih tugas “{kind.label}” yang paling banyak bergeser di Peta Tugasmu"
+    # Misi kustom organisasi lalu bank misi umum
+    for mission in sorted(missions, key=lambda m: (m.org_id is None, m.title)):
+        if mission not in ordered:
+            ordered.append(mission)
+    return ordered, reasons
 
 
-def relevance(mission: Mission, gap: set[int], isco: str | None) -> tuple[float, str | None]:
-    overlap = [s for s in mission.skills if s.id in gap]
-    score = 2.0 * len(overlap)
-    reason = None
-    if overlap:
-        reason = "Melatih skill di rencanamu: " + ", ".join(s.label for s in overlap[:3])
-    if isco and isco in (mission.occupation_isco_codes or []):
-        score += 1.0
-        reason = reason or "Sesuai dengan jabatanmu"
-    return score, reason
+async def first_recommended_title(db: AsyncSession, user: User) -> str | None:
+    ordered, _ = await recommended_order(db, user)
+    return ordered[0].title if ordered else None
 
 
 # ---------- Percobaan ----------
@@ -144,12 +150,13 @@ def require_in_progress(attempt: Attempt) -> None:
 def boss_system(mission: Mission) -> str:
     persona = mission.boss_persona or {}
     return prompts.BOSS_SYSTEM_TEMPLATE.format(
-        name=persona.get("name", "Bu Rina"),
+        name=persona.get("name", "Bu Ratna"),
         role=persona.get("role", "atasanmu"),
-        style=persona.get("style", "ramah, lugas, dan fokus pada hasil"),
+        style=persona.get("style", "wajar seperti atasan di kantor"),
+        title=mission.title,
         brief=mission.brief,
-        data=json.dumps(mission.simulation_data or {}, ensure_ascii=False, indent=1),
-        rules=prompts.GUARDRAIL_RULES,
+        data=grading.data_text(mission),
+        standards="; ".join(r["criterion"] for r in mission.rubric or []),
     )
 
 
@@ -187,37 +194,48 @@ _ASKS_FOR_ANSWER = re.compile(
 def boss_fallback_reply(mission: Mission, message: str) -> str:
     if _ASKS_FOR_ANSWER.search(message):
         return (
-            "Itu bagian kamu ya. Coba olah sendiri dari data simulasi yang ada. Kalau ada yang "
-            "ambigu, sebutkan asumsimu di jawaban supaya saya bisa memahaminya."
+            "Itu bagian kamu ya. Coba olah sendiri dari data misi, boleh dibantu AI asal hasilnya kamu "
+            "periksa lagi. Kalau ada yang ambigu, sebutkan asumsimu di jawaban."
         )
     if re.search(r"\b(format|bentuk|panjang|deadline|kapan)\b", message, re.IGNORECASE):
-        return (
-            "Ikuti saja yang diminta di brief, ringkas dan jelas. Yang penting angkanya bisa "
-            "dipertanggungjawabkan dan rekomendasimu masuk akal."
-        )
+        return "Ikuti saja yang diminta di brief, ringkas dan jelas. Yang penting angkanya bisa dipertanggungjawabkan."
     return (
-        "Terima kasih sudah bertanya. Semua data yang kamu perlukan ada di data simulasi. Fokus ke yang diminta di brief, lalu "
-        "kumpulkan jawabanmu kalau sudah yakin."
+        "Pertanyaan bagus. Semua yang kamu perlukan ada di data misi. Fokus ke yang diminta di brief, "
+        "lalu kumpulkan kalau sudah yakin."
     )
 
 
 # ---------- Penilaian ----------
 
 
-async def award_passport(db: AsyncSession, attempt: Attempt, mission: Mission) -> list[dict]:
-    earned = []
+def excerpt_of(mission: Mission, answers: dict) -> str | None:
+    for field in mission.answer_fields or []:
+        if field.get("type") == "long_text" and to_text(answers.get(field["id"])).strip():
+            return to_text(answers[field["id"]]).strip()[:EXCERPT_CHARS]
+    return None
+
+
+async def award_passport(
+    db: AsyncSession, attempt: Attempt, mission: Mission, checks: list[dict] | None = None
+) -> list[PassportEntry]:
+    checks = checks if checks is not None else (attempt.result or {}).get("checks", [])
+    entries = []
     for skill in mission.skills:
-        db.add(
-            PassportEntry(
-                user_id=attempt.user_id,
-                skill_id=skill.id,
-                attempt_id=attempt.id,
-                mission_id=mission.id,
-                score=attempt.score or 0,
-            )
+        entry = PassportEntry(
+            user_id=attempt.user_id,
+            skill_id=skill.id,
+            attempt_id=attempt.id,
+            mission_id=mission.id,
+            score=attempt.score or 0,
+            rubric_avg=attempt.rubric_avg,
+            checks_passed=sum(1 for c in checks if c["ok"]),
+            checks_total=len(checks),
+            excerpt=excerpt_of(mission, attempt.answers or {}),
         )
-        earned.append({"id": skill.id, "label": skill.label})
-    return earned
+        db.add(entry)
+        entries.append(entry)
+    await db.flush()
+    return entries
 
 
 async def revoke_passport(db: AsyncSession, attempt: Attempt) -> None:
@@ -237,60 +255,74 @@ async def submit_attempt(
     attempt: Attempt,
     mission: Mission,
     answers: dict,
+    ai_usage: str | None,
     llm: LLMService,
     info: LLMCallInfo,
-) -> dict:
+) -> None:
     clean = grading.validate_answers(mission, answers)
-    objective_score, objective = grading.objective_check(mission, clean)
+    checks = grading.objective_check(mission, clean)
+    words = grading.written_words(clean)
     try:
-        rubric = await grading.llm_rubric(llm, mission, clean, objective, info)
+        graded = await grading.llm_rubric(llm, mission, clean, ai_usage, checks, info)
         engine = "llm"
     except LLMError:
-        rubric = grading.heuristic_rubric(mission, clean)
+        graded = grading.fallback_feedback(checks, words)
         engine = "fallback"
 
-    score = grading.combine(mission, objective_score, rubric["score"])
     now = utcnow()
     attempt.answers = clean
+    attempt.ai_usage = (ai_usage or "").strip() or None
     attempt.draft = {}
     attempt.status = "graded"
     attempt.submitted_at = now
-    attempt.objective_score = objective_score
-    attempt.rubric_score = rubric["score"]
-    attempt.score = score
-    attempt.passed = score >= mission.pass_score
+    attempt.objective_score = round(100 * sum(c["ok"] for c in checks) / len(checks), 1) if checks else None
+    attempt.rubric_avg = graded["rubric_avg"]
+    attempt.rubric_score = (
+        round(100 * graded["rubric_avg"] / grading.MAX_SCORE, 1) if graded["rubric_avg"] is not None else None
+    )
+    attempt.score = grading.display_score(checks, graded["rubric_avg"])
+    attempt.passed = grading.is_passed(checks, graded["rubric_avg"], words)
+    attempt.next_step = graded["next_step"]
     attempt.engine = engine
 
-    skills = await award_passport(db, attempt, mission) if attempt.passed else []
+    entries = await award_passport(db, attempt, mission, checks) if attempt.passed else []
 
     # Penilaian cadangan selalu ditinjau; penilaian LLM disampel acak untuk kontrol mutu
     if engine == "fallback" or random.random() < get_settings().review_sample_rate:
         attempt.review_status = "sampled"
-        db.add(Review(attempt_id=attempt.id, kind="sample", status="pending", original_score=score))
+        db.add(Review(attempt_id=attempt.id, kind="sample", status="pending", original_score=attempt.score))
 
     attempt.result = {
-        "objective": {"score": objective_score, "checks": objective},
-        "rubric": rubric,
-        "skills_earned": skills,
+        "checks": checks,
+        "rubric": graded["rubric"],
+        "rubric_avg": graded["rubric_avg"],
+        "feedback": graded["feedback"],
+        "next_step": graded["next_step"],
+        "skills_earned": [{"id": s.id, "code": s.code, "label": s.label} for s in mission.skills] if entries else [],
+        "passport_evidence_id": str(entries[0].id) if entries else None,
         "graded_at": now.isoformat(),
     }
     await db.flush()
     if attempt.passed:
         await refresh_readiness(db, attempt.user_id)
-    return attempt.result
 
 
-def result_view(attempt: Attempt, mission: Mission) -> dict:
+async def result_view(db: AsyncSession, attempt: Attempt, mission: Mission) -> dict:
+    """Nota penilaian sesuai payload v0.1, ditambah info percobaan."""
     result = attempt.result or {}
+    audit = await latest_audit(db, attempt.user_id)
     return {
         "attempt_id": attempt.id,
         "mission": {"id": mission.id, "title": mission.title},
         "status": attempt.status,
-        "score": attempt.score,
         "passed": attempt.passed,
-        "pass_score": mission.pass_score,
-        "objective": result.get("objective"),
+        "checks": [{"label": c["label"], "ok": c["ok"], "hint": c.get("hint")} for c in result.get("checks", [])],
         "rubric": result.get("rubric"),
+        "rubric_avg": result.get("rubric_avg"),
+        "feedback": result.get("feedback"),
+        "next_step": result.get("next_step"),
+        "passport_evidence_id": result.get("passport_evidence_id"),
+        "readiness_score": audit.readiness_score if audit else None,
         "skills_earned": result.get("skills_earned", []),
         "engine": attempt.engine,
         "review_status": attempt.review_status,

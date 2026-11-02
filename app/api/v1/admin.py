@@ -10,6 +10,7 @@ from app.core.pagination import Page, paginate_scalars
 from app.db.base import utcnow
 from app.models import Attempt, CustomMissionRequest, Mission, Review, Skill
 from app.schemas.admin import MissionAdminIn, MissionAdminOut, ReviewDecisionIn, ReviewOut
+from app.ingest import apply_mission_payload
 from app.services import missions as mission_service
 from app.services.audits import refresh_readiness
 from app.services.notifications import notify
@@ -37,6 +38,8 @@ async def review_view(db, review: Review) -> dict:
             "score": attempt.score,
             "objective_score": attempt.objective_score,
             "rubric_score": attempt.rubric_score,
+            "rubric_avg": attempt.rubric_avg,
+            "ai_usage": attempt.ai_usage,
             "passed": attempt.passed,
             "engine": attempt.engine,
             "answers": attempt.answers,
@@ -69,7 +72,7 @@ async def list_reviews(
     return {"data": [await review_view(db, r) for r in rows], "meta": meta}
 
 
-@router.post("/reviews/{review_id}", response_model=ReviewOut, summary="Putusan peninjau (setuju atau ubah nilai)")
+@router.post("/reviews/{review_id}", response_model=ReviewOut, summary="Putusan peninjau (setuju atau ubah hasil lulus)")
 async def decide_review(review_id: uuid.UUID, body: ReviewDecisionIn, db: DB, reviewer: Reviewer):
     review = await db.get(Review, review_id)
     if review is None:
@@ -86,17 +89,26 @@ async def decide_review(review_id: uuid.UUID, body: ReviewDecisionIn, db: DB, re
     review.resolved_at = utcnow()
 
     if body.decision == "override":
-        review.new_score = body.new_score
         was_passed = bool(attempt.passed)
-        attempt.score = body.new_score
-        attempt.passed = body.new_score >= mission.pass_score
+        attempt.passed = body.passed
+        if body.new_score is not None:
+            attempt.score = body.new_score
+        review.new_score = attempt.score
         result = dict(attempt.result or {})
-        result["reviewer_override"] = {"score": body.new_score, "note": body.note, "at": utcnow().isoformat()}
+        result["reviewer_override"] = {
+            "passed": body.passed,
+            "score": body.new_score,
+            "note": body.note,
+            "at": utcnow().isoformat(),
+        }
         if attempt.passed and not was_passed:
-            result["skills_earned"] = await mission_service.award_passport(db, attempt, mission)
+            entries = await mission_service.award_passport(db, attempt, mission)
+            result["skills_earned"] = [{"id": s.id, "code": s.code, "label": s.label} for s in mission.skills]
+            result["passport_evidence_id"] = str(entries[0].id) if entries else None
         elif was_passed and not attempt.passed:
             await mission_service.revoke_passport(db, attempt)
             result["skills_earned"] = []
+            result["passport_evidence_id"] = None
         elif attempt.passed:
             await mission_service.update_passport_score(db, attempt)
         attempt.result = result
@@ -115,13 +127,13 @@ async def decide_review(review_id: uuid.UUID, body: ReviewDecisionIn, db: DB, re
         attempt.review_status = "reviewed"
 
     if review.kind == "appeal" or body.decision == "override":
-        verdict = "nilaimu diperbarui" if body.decision == "override" else "nilaimu tetap"
+        verdict = "lulus" if attempt.passed else "belum lulus"
         await notify(
             db,
             attempt.user_id,
             "review_result",
             "Hasil tinjauan misi",
-            f"Tim peninjau sudah memeriksa misi \"{mission.title}\": {verdict} ({attempt.score:g}).",
+            f"Tim peninjau sudah memeriksa misi \"{mission.title}\": hasilnya {verdict}.",
             {"attempt_id": str(attempt.id)},
         )
     await db.commit()
@@ -141,9 +153,11 @@ def mission_admin_view(m: Mission) -> dict:
         "rubric": m.rubric or [],
         "answer_key": m.answer_key or [],
         "occupation_isco_codes": m.occupation_isco_codes or [],
-        "skills": [{"id": s.id, "label": s.label} for s in m.skills],
+        "skills": [{"id": s.id, "code": s.code, "label": s.label} for s in m.skills],
+        "kind": m.kind,
         "difficulty": m.difficulty,
         "est_minutes": m.est_minutes,
+        "duration_label": m.duration_label,
         "pass_score": m.pass_score,
         "objective_weight": m.objective_weight,
         "is_published": m.is_published,
@@ -158,11 +172,7 @@ async def apply_mission(db, mission: Mission, body: MissionAdminIn) -> None:
     missing = sorted(set(body.skill_ids) - {s.id for s in skills})
     if missing:
         raise ApiError(400, "unknown_skills", "Ada skill yang tidak dikenal.", details=missing)
-    data = body.model_dump(exclude={"skill_ids", "custom_request_id"})
-    for key in ("answer_fields", "rubric", "answer_key"):
-        data[key] = [{k: v for k, v in item.items() if v is not None} for item in data[key]]
-    for key, value in data.items():
-        setattr(mission, key, value)
+    apply_mission_payload(mission, body)
     mission.skills = skills
 
 

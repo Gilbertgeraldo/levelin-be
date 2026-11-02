@@ -11,67 +11,24 @@ from app.core.errors import ApiError, not_found
 from app.core.pagination import Page, paginate_scalars
 from app.core.ratelimit import begin_ai_call, finish_ai_call
 from app.models import AIUsage, Audit, AuditTask, Occupation, OccupationTask, Profile
-from app.schemas.audits import (
-    AuditCreate,
-    AuditListItem,
-    AuditOut,
-    AuditTaskCreate,
-    AuditTaskPatch,
-    ShareCardOut,
-)
+from app.schemas.audits import AuditCreate, AuditListItem, AuditOut, AuditTaskCreate, AuditTaskPatch, ShareCardOut
 from app.services import audits, prompts, scoring
 from app.services.guardrails import SentenceGuard
 from app.services.llm import LLMCallInfo
+from app.services.missions import first_recommended_title
 from app.services.streaming import stream_with_fallback
 from app.services.textutil import fmt_num
 
 router = APIRouter(prefix="/audits", tags=["Audit & Peta Tugas"])
 
+MAX_TASKS_PER_AUDIT = 30
+
 
 async def audit_out(db, audit: Audit) -> dict:
-    occupation = await db.get(Occupation, audit.occupation_code)
-    ids = {t.template_task_id for t in audit.tasks if t.template_task_id}
-    templates = (
-        {t.id: t for t in (await db.scalars(select(OccupationTask).where(OccupationTask.id.in_(ids)))).all()}
-        if ids
-        else {}
-    )
-    return {
-        "id": audit.id,
-        "occupation": {
-            "code": audit.occupation_code,
-            "title": occupation.title if occupation else audit.occupation_code,
-            "isco_code": audit.isco_code,
-        },
-        "story": audit.story,
-        "engine": audit.engine,
-        "engine_detail": audit.engine_detail or {},
-        "summary": audit.summary,
-        "tasks": [
-            {
-                "id": t.id,
-                "position": t.position,
-                "description": t.description,
-                "hours_per_week": t.hours_per_week,
-                "uses_ai": t.uses_ai,
-                "ilo_score": round(t.ilo_score, 3),
-                "group": t.group,
-                "group_label": scoring.GROUP_LABELS[t.group],
-                "template_task": {"id": t.template_task_id, "description": templates[t.template_task_id].description}
-                if t.template_task_id in templates
-                else None,
-                "match_similarity": t.match_similarity,
-                "match_overridden": t.match_overridden,
-                "source": t.source,
-            }
-            for t in audit.tasks
-        ],
-        "created_at": audit.created_at,
-        "updated_at": audit.updated_at,
-    }
+    return audits.audit_view(audit, await db.get(Occupation, audit.occupation_code))
 
 
-async def _require_consent(db, user) -> None:
+async def _profile_with_consent(db, user) -> Profile:
     profile = await db.get(Profile, user.id)
     if profile is None or not profile.consent_data_processing:
         raise ApiError(
@@ -79,21 +36,25 @@ async def _require_consent(db, user) -> None:
             "consent_required",
             "Simpan profil dan setujui pemrosesan data (PUT /v1/me/profile) sebelum membuat audit.",
         )
+    return profile
 
 
-@router.post("", status_code=201, response_model=AuditOut, summary="Buat audit: ekstraksi (LLM), pencocokan (embedding), skor")
+@router.post("", status_code=201, response_model=AuditOut, summary="Buat audit: tugas template + cerita -> Peta Tugas")
 async def create_audit(body: AuditCreate, db: DB, user: CurrentUser, llm: LLM, embeddings: Embeddings):
-    await _require_consent(db, user)
-    if not (body.story and body.story.strip()) and not body.tasks:
+    profile = await _profile_with_consent(db, user)
+    occupation = await db.get(Occupation, body.occupation_code or profile.occupation_code)
+    if occupation is None:
+        raise not_found("Jabatan")
+    if not (body.story and body.story.strip()) and not body.template_tasks:
         raise ApiError(400, "no_tasks", "Ceritakan pekerjaanmu atau pilih minimal satu tugas dari daftar.")
     usage = await begin_ai_call(db, user.id, "audit")
     info = LLMCallInfo()
     audit = await audits.create_audit(
         db,
         user,
-        occupation_code=body.occupation_code,
+        occupation=occupation,
         story=body.story,
-        selected=[t.model_dump() for t in body.tasks],
+        template_tasks=[t.model_dump() for t in body.template_tasks],
         llm=llm,
         embeddings=embeddings,
         info=info,
@@ -111,7 +72,7 @@ async def get_latest(db: DB, user: CurrentUser):
     return await audit_out(db, audit)
 
 
-@router.get("", response_model=Page[AuditListItem], summary="Riwayat audit (paginasi)")
+@router.get("", response_model=Page[AuditListItem], summary="Riwayat audit (cek ulang tiap 3 bulan)")
 async def list_audits(db: DB, user: CurrentUser, page: Pagination):
     stmt = select(Audit).where(Audit.user_id == user.id).order_by(Audit.created_at.desc())
     rows, meta = await paginate_scalars(db, stmt, page)
@@ -124,11 +85,10 @@ async def list_audits(db: DB, user: CurrentUser, page: Pagination):
     data = [
         {
             "id": a.id,
-            "occupation": {"code": a.occupation_code, "title": titles.get(a.occupation_code, a.occupation_code), "isco_code": a.isco_code},
+            "occupation": {"code": a.occupation_code, "name": titles.get(a.occupation_code, a.occupation_code)},
             "readiness_score": a.readiness_score,
-            "exposure_index": a.exposure_index,
-            "hours_saved_week": a.hours_saved_week,
-            "total_hours": a.total_hours,
+            "hours_saved": a.hours_saved_week,
+            "exposed_hours": (a.summary or {}).get("exposed_hours", 0),
             "task_count": len(a.tasks),
             "engine": a.engine,
             "created_at": a.created_at,
@@ -150,76 +110,67 @@ def _find_task(audit: Audit, task_id: uuid.UUID) -> AuditTask:
     raise not_found("Tugas")
 
 
-async def _template_for(db, audit: Audit, template_id: int) -> OccupationTask:
-    template = await db.get(OccupationTask, template_id)
-    if template is None or template.isco_code != audit.isco_code:
-        raise ApiError(400, "invalid_template_task", "Template tugas tidak cocok dengan jabatan audit ini.")
+async def _template_by_code(db, code: str) -> OccupationTask:
+    template = await db.scalar(
+        select(OccupationTask).where(OccupationTask.code == code, OccupationTask.is_candidate.is_(True))
+    )
+    if template is None:
+        raise ApiError(400, "invalid_template_task", f"Tugas ILO {code} tidak dikenal.")
     return template
 
 
-async def _default_score(db, audit: Audit) -> float:
-    occupation = await db.get(Occupation, audit.occupation_code)
-    templates = list((await db.scalars(select(OccupationTask).where(OccupationTask.isco_code == audit.isco_code))).all())
-    return audits.fallback_score(occupation, templates)
+def _set_template(task: AuditTask, template: OccupationTask | None) -> None:
+    task.template = template
+    task.template_task_id = template.id if template else None
+    task.ilo_score = template.ilo_score if template else None
 
 
 @router.patch(
     "/{audit_id}/tasks/{task_id}",
     response_model=AuditOut,
-    summary="Ubah jam/minggu, 'sudah pakai AI', atau ganti kecocokan ILO",
+    summary="Ubah jam/minggu, 'sudah pakai AI', padanan ILO, atau kelompok tugas tak terpetakan",
 )
 async def patch_task(audit_id: uuid.UUID, task_id: uuid.UUID, body: AuditTaskPatch, db: DB, user: CurrentUser):
     audit = await audits.get_owned_audit(db, user, audit_id)
     task = _find_task(audit, task_id)
     fields = body.model_fields_set
-    if "description" in fields and body.description:
-        task.description = body.description.strip()
+    if "name" in fields and body.name:
+        task.description = body.name.strip()
     if "hours_per_week" in fields and body.hours_per_week is not None:
         task.hours_per_week = body.hours_per_week
     if "uses_ai" in fields and body.uses_ai is not None:
         task.uses_ai = body.uses_ai
-    if "template_task_id" in fields:
-        if body.template_task_id is None:
-            task.template_task_id = None
-            task.ilo_score = await _default_score(db, audit)
-        else:
-            template = await _template_for(db, audit, body.template_task_id)
-            task.template_task_id = template.id
-            task.ilo_score = template.ilo_score
+    if "ilo_task_id" in fields:
+        _set_template(task, await _template_by_code(db, body.ilo_task_id) if body.ilo_task_id else None)
         task.match_similarity = None
         task.match_overridden = True
+        task.confidence = "manual" if body.ilo_task_id else None
+    if "group" in fields:
+        if task.ilo_score is not None and body.group is not None:
+            raise ApiError(400, "group_from_ilo", "Kelompok tugas yang punya padanan ILO ditentukan dari skornya.")
+        task.manual_group = body.group
     await audits.recompute(db, audit)
     await db.commit()
     return await audit_out(db, audit)
 
 
 @router.post("/{audit_id}/tasks", status_code=201, response_model=AuditOut, summary="Tambah tugas manual")
-async def add_task(audit_id: uuid.UUID, body: AuditTaskCreate, db: DB, user: CurrentUser, embeddings: Embeddings):
+async def add_task(audit_id: uuid.UUID, body: AuditTaskCreate, db: DB, user: CurrentUser):
     audit = await audits.get_owned_audit(db, user, audit_id)
-    if len(audit.tasks) >= 30:
-        raise ApiError(400, "too_many_tasks", "Satu audit maksimal 30 tugas.")
-    if body.template_task_id is not None:
-        template, similarity, overridden = await _template_for(db, audit, body.template_task_id), None, True
-    else:
-        templates = list(
-            (await db.scalars(select(OccupationTask).where(OccupationTask.isco_code == audit.isco_code))).all()
-        )
-        [(template, similarity)], _ = await audits.match_to_templates(embeddings, [body.description], templates)
-        overridden = False
-    score = template.ilo_score if template else await _default_score(db, audit)
-    audit.tasks.append(
-        AuditTask(
-            position=max((t.position for t in audit.tasks), default=-1) + 1,
-            description=body.description.strip(),
-            hours_per_week=body.hours_per_week,
-            uses_ai=body.uses_ai,
-            template_task_id=template.id if template else None,
-            match_similarity=similarity,
-            ilo_score=score,
-            source="manual",
-            match_overridden=overridden,
-        )
+    if len(audit.tasks) >= MAX_TASKS_PER_AUDIT:
+        raise ApiError(400, "too_many_tasks", f"Satu audit maksimal {MAX_TASKS_PER_AUDIT} tugas.")
+    template = await _template_by_code(db, body.ilo_task_id) if body.ilo_task_id else None
+    task = AuditTask(
+        position=max((t.position for t in audit.tasks), default=-1) + 1,
+        description=body.name.strip(),
+        hours_per_week=body.hours_per_week,
+        uses_ai=body.uses_ai,
+        manual_group=None if template else body.group,
+        source="manual",
+        confidence="manual" if template else None,
     )
+    _set_template(task, template)
+    audit.tasks.append(task)
     await audits.recompute(db, audit)
     await db.commit()
     return await audit_out(db, audit)
@@ -250,11 +201,12 @@ async def _explain_ctx(audit_id: uuid.UUID, db: DB, user: CurrentUser) -> tuple[
     description="Event: meta {engine}, delta {text}, reset {reason}, done {engine}.",
 )
 async def explain(
-    ctx: Annotated[tuple[Audit, AIUsage], Depends(_explain_ctx)], db: DB, llm: LLM
+    ctx: Annotated[tuple[Audit, AIUsage], Depends(_explain_ctx)], db: DB, user: CurrentUser, llm: LLM
 ) -> AsyncIterator[ServerSentEvent]:
     audit, usage = ctx
     occupation = await db.get(Occupation, audit.occupation_code)
-    prompt = audits.numbers_prompt(audits.audit_numbers(audit, occupation))
+    first_mission = await first_recommended_title(db, user)
+    facts = audits.explain_facts(audit, occupation, user, first_mission)
     await db.commit()  # lepas koneksi selama stream
     info = LLMCallInfo()
 
@@ -262,7 +214,7 @@ async def explain(
         return llm.stream_text(
             tier="light",
             system=prompts.EXPLAIN_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": facts}],
             max_tokens=2000,
             effort="low",
             info=info,
@@ -274,7 +226,7 @@ async def explain(
 
     async for event in stream_with_fallback(
         llm_stream=llm_stream if llm.available else None,
-        fallback_text=lambda: audits.explain_fallback(audit),
+        fallback_text=lambda: audits.explain_fallback(audit, user, first_mission),
         guard=SentenceGuard(),
         on_complete=on_complete,
     ):
@@ -287,25 +239,24 @@ async def share_card(audit_id: uuid.UUID, db: DB, user: CurrentUser):
     occupation = await db.get(Occupation, audit.occupation_code)
     title = occupation.title if occupation else audit.occupation_code
     s = audit.summary or {}
-    groups = s.get("groups") or {}
-    ai_share = round((groups.get("high", {}).get("share", 0) + groups.get("medium", {}).get("share", 0)), 3)
-    ordered = sorted(audit.tasks, key=lambda t: t.ilo_score, reverse=True)
-    top_ai = next((t.description for t in ordered if t.group in ("high", "medium")), None)
-    top_human = next((t.description for t in reversed(ordered) if t.group == "low"), None)
+    share = scoring.share_by_group(s.get("hours_by_group") or {})
+    ordered = sorted(audit.tasks, key=lambda t: t.ilo_score or 0, reverse=True)
+    top_ai = next((t.description for t in ordered if t.group in scoring.EXPOSED), None)
+    top_human = next((t.description for t in reversed(ordered) if t.group == "human"), None)
     readiness = s.get("readiness_score", audit.readiness_score)
+    exposed_share = share["auto"] + share["assist"]
     return {
         "readiness_score": readiness,
         "occupation_title": title,
-        "hours_saved_week": s.get("hours_saved_week", 0),
-        "ai_share": ai_share,
-        "human_share": round(1 - ai_share, 3),
+        "hours_saved": s.get("hours_saved", 0),
+        "share": share,
         "top_ai_task": top_ai,
         "top_human_task": top_human,
         "headline": f"Skor Kesiapan AI saya {readiness}/100",
         "share_text": (
-            f"Saya baru memetakan pekerjaan saya sebagai {title} di Levelin. "
-            f"{round(ai_share * 100)}% jam kerja saya bisa dibantu AI, berpotensi hemat "
-            f"{fmt_num(s.get('hours_saved_week'))} jam per minggu. Skor Kesiapan saya {readiness}/100. #Levelin"
+            f"Saya baru memetakan pekerjaan saya sebagai {title} di Levelin. {exposed_share}% jam kerja saya "
+            f"bergeser karena AI, dan saya bisa hemat sekitar {fmt_num(s.get('hours_saved'))} jam per minggu. "
+            f"Skor Kesiapan saya {readiness}/100. #Levelin"
         ),
         "created_at": audit.created_at,
     }

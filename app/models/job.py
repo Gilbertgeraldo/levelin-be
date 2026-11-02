@@ -29,7 +29,8 @@ class Job(UUIDPk, Timestamps, Base):
     employment_type: Mapped[str | None] = mapped_column(String(40))
     description: Mapped[str | None] = mapped_column(Text)
     url: Mapped[str | None] = mapped_column(String(500))
-    source: Mapped[str] = mapped_column(String(20), default="partner")  # internal | partner | aggregator
+    # internal | karirhub | mitra | tidak (sumber tidak terverifikasi)
+    source: Mapped[str] = mapped_column(String(20), default="mitra")
     source_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     occupation_code: Mapped[str | None] = mapped_column(
         ForeignKey("occupations.code", ondelete="SET NULL")

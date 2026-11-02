@@ -1,4 +1,4 @@
-"""Impor jabatan KBJI 2014 beserta pemetaan ke ISCO-08.
+"""Impor jabatan KBJI 2026 (BPS) beserta pemetaan ke ISCO-08.
 
     uv run python -m scripts.ingest_kbji data/kbji.csv
 

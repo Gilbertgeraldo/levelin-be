@@ -39,8 +39,9 @@ from app.services.llm import LLMError, get_llm  # noqa: E402
 from scripts.dev_token import make_token  # noqa: E402
 from scripts.seed_demo import seed_catalog, seed_reference  # noqa: E402
 
-WORKER_EMAIL = "budi@contoh-sejahtera.test"
-HR_EMAIL = "hr@contoh-sejahtera.test"
+WORKER_EMAIL = "rina@sinar-distribusi.test"
+HR_EMAIL = "hr@sinar-distribusi.test"
+MANAGER_EMAIL = "ratna@sinar-distribusi.test"
 
 
 @pytest.fixture
@@ -158,7 +159,7 @@ def use_fake_primary_embeddings() -> None:
     app.dependency_overrides[get_embeddings] = _make
 
 
-def auth(email: str = WORKER_EMAIL, role: str | None = None, name: str | None = "Budi Santoso") -> dict:
+def auth(email: str = WORKER_EMAIL, role: str | None = None, name: str | None = "Rina Lestari") -> dict:
     return {"Authorization": f"Bearer {make_token(email, name, role, 1)}"}
 
 

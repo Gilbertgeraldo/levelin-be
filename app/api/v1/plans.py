@@ -22,7 +22,7 @@ router = APIRouter(prefix="/plans", tags=["Rencana Naik Level"])
 @router.post("", status_code=201, response_model=PlanOut, summary="Buat rencana dari {audit_id, direction}")
 async def create_plan(body: PlanCreate, db: DB, user: CurrentUser):
     audit = await get_owned_audit(db, user, body.audit_id)
-    plan = await plans.create_plan(db, user, audit, body.direction, body.target_occupation_code)
+    plan = await plans.create_plan(db, user, audit, body.direction)
     await db.commit()
     return await plans.plan_view(db, plan)
 
@@ -35,17 +35,12 @@ async def current_plan(db: DB, user: CurrentUser):
     return await plans.plan_view(db, plan)
 
 
-@router.patch("/{plan_id}", response_model=PlanOut, summary="Ganti arah atau jabatan tujuan")
+@router.patch("/{plan_id}", response_model=PlanOut, summary="Ganti arah: perkuat, naik, atau pindah")
 async def patch_plan(plan_id: uuid.UUID, body: PlanPatch, db: DB, user: CurrentUser):
     plan = await plans.get_owned_plan(db, user, plan_id)
     if plan.status != "active":
         raise ApiError(409, "plan_archived", "Rencana ini sudah diarsipkan.")
-    fields = body.model_fields_set
-    direction = body.direction if "direction" in fields and body.direction else plan.direction
-    target = body.target_occupation_code if "target_occupation_code" in fields else plan.target_occupation_code
-    if direction == "upskill":
-        target = None
-    await plans.regenerate(db, user, plan, direction, target)
+    await plans.regenerate(db, user, plan, body.direction)
     await db.commit()
     return await plans.plan_view(db, plan)
 
@@ -63,11 +58,11 @@ async def _narrative_ctx(plan_id: uuid.UUID, db: DB, user: CurrentUser) -> tuple
     description="Event: meta {engine}, delta {text}, reset {reason}, done {engine}.",
 )
 async def narrative(
-    ctx: Annotated[tuple[Plan, AIUsage], Depends(_narrative_ctx)], db: DB, llm: LLM
+    ctx: Annotated[tuple[Plan, AIUsage], Depends(_narrative_ctx)], db: DB, user: CurrentUser, llm: LLM
 ) -> AsyncIterator[ServerSentEvent]:
     plan, usage = ctx
     view = await plans.plan_view(db, plan)
-    prompt = plans.narrative_prompt(view)
+    facts = plans.narrative_facts(view, user)
     await db.commit()  # lepas koneksi selama stream
     info = LLMCallInfo()
 
@@ -75,7 +70,7 @@ async def narrative(
         return llm.stream_text(
             tier="light",
             system=prompts.PLAN_NARRATIVE_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": facts}],
             max_tokens=2500,
             effort="low",
             info=info,
@@ -87,7 +82,7 @@ async def narrative(
 
     async for event in stream_with_fallback(
         llm_stream=llm_stream if llm.available else None,
-        fallback_text=lambda: plans.narrative_fallback(view),
+        fallback_text=lambda: plans.narrative_fallback(view, user),
         guard=SentenceGuard(),
         on_complete=on_complete,
     ):

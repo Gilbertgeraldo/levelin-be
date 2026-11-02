@@ -1,0 +1,157 @@
+{
+ "_note": "Katalog kelas dari prototipe Tim Hearz. Harga dicek 21 Oktober 2026 dan bisa berubah.",
+ "courses": [
+  {
+   "title": "Artificial Intelligence: Free Short Class",
+   "provider": "MySkill",
+   "url": "https://myskill.id/bootcamp/artificial-intelligence-kelas-gratis-bersertifikat-myskill",
+   "price": 0,
+   "format": "Online live, singkat",
+   "language": "id",
+   "is_partner": false,
+   "skills": [
+    "ai"
+   ]
+  },
+  {
+   "title": "Microsoft Excel: Free Short Class",
+   "provider": "MySkill",
+   "url": "https://myskill.id/bootcamp/microsoft-excel-short-class",
+   "price": 0,
+   "format": "Online live, singkat",
+   "language": "id",
+   "is_partner": false,
+   "skills": [
+    "excel"
+   ]
+  },
+  {
+   "title": "Data Analysis: Free Short Class",
+   "provider": "MySkill",
+   "url": "https://myskill.id/bootcamp/data-analysis-short-class",
+   "price": 0,
+   "format": "Online live, singkat",
+   "language": "id",
+   "is_partner": false,
+   "skills": [
+    "analisis"
+   ]
+  },
+  {
+   "title": "Human Resource: Free Short Class",
+   "provider": "MySkill",
+   "url": "https://myskill.id/bootcamp/human-resource-short-class",
+   "price": 0,
+   "format": "Online live, singkat",
+   "language": "id",
+   "is_partner": false,
+   "skills": [
+    "sdm"
+   ]
+  },
+  {
+   "title": "Artificial Intelligence and Automation Bootcamp",
+   "provider": "MySkill",
+   "url": "https://myskill.id/bootcamp/artificial-intelligence-automation",
+   "price": 230000,
+   "format": "Bootcamp online live",
+   "language": "id",
+   "is_partner": false,
+   "skills": [
+    "ai",
+    "menulis"
+   ]
+  },
+  {
+   "title": "Project & Product Management Bootcamp",
+   "provider": "MySkill",
+   "url": "https://myskill.id/bootcamp/product-project-management",
+   "price": 230000,
+   "format": "Bootcamp online live",
+   "language": "id",
+   "is_partner": false,
+   "skills": [
+    "proyek",
+    "supervisi"
+   ]
+  },
+  {
+   "title": "Microsoft Excel Basic to Advanced: Fullstack Intensive",
+   "provider": "MySkill",
+   "url": "https://myskill.id/bootcamp/microsoft-excel",
+   "price": 450000,
+   "format": "Bootcamp online live",
+   "language": "id",
+   "is_partner": false,
+   "skills": [
+    "excel",
+    "kualitas"
+   ]
+  },
+  {
+   "title": "Accounting, Tax & Audit Fullstack Intensive",
+   "provider": "MySkill",
+   "url": "https://myskill.id/bootcamp/akuntansi-keuangan",
+   "price": 450000,
+   "format": "Bootcamp online live",
+   "language": "id",
+   "is_partner": false,
+   "skills": [
+    "keuangan"
+   ]
+  },
+  {
+   "title": "Data Analysis: Fullstack Intensive Bootcamp",
+   "provider": "MySkill",
+   "url": "https://myskill.id/bootcamp/data-analysis",
+   "price": 650000,
+   "format": "Bootcamp online live",
+   "language": "id",
+   "is_partner": false,
+   "skills": [
+    "analisis",
+    "excel",
+    "kualitas"
+   ]
+  },
+  {
+   "title": "Langganan Learning Path tingkat Pemula (2–5 kelas, 30 hari)",
+   "provider": "Dicoding",
+   "url": "https://www.dicoding.com/subscriptions/purchases",
+   "price": 650000,
+   "format": "Mandiri online",
+   "language": "id",
+   "is_partner": false,
+   "skills": [
+    "analisis"
+   ]
+  },
+  {
+   "title": "Human Capital Staff BNSP: Intensive Training",
+   "provider": "MySkill",
+   "url": "https://myskill.id/bootcamp/human-capital-staff-bnsp",
+   "price": 2250000,
+   "format": "Pelatihan + sertifikasi BNSP",
+   "language": "id",
+   "is_partner": false,
+   "skills": [
+    "sdm"
+   ]
+  },
+  {
+   "title": "Full Stack Data Analytics (4 bulan)",
+   "provider": "RevoU",
+   "url": "https://www.revou.co/data-analytics",
+   "price": 17999000,
+   "format": "Bootcamp online live, cicilan tersedia",
+   "language": "id",
+   "is_partner": false,
+   "skills": [
+    "analisis",
+    "excel",
+    "kualitas",
+    "ai"
+   ]
+  }
+ ]
+}

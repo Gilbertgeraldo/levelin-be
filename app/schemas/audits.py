@@ -1,105 +1,87 @@
+"""Kontrak audit, mengikuti payload v0.1 (API_ENDPOINTS.md)."""
+
 import uuid
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
-from app.schemas.common import OccupationRef
+Group = Literal["auto", "assist", "human", "none"]
+ManualGroup = Literal["auto", "assist", "human"]
 
 
-class AuditTaskIn(BaseModel):
-    template_task_id: int | None = Field(None, description="Id dari /v1/occupations/{code}/tasks")
-    description: str | None = Field(None, max_length=300)
-    hours_per_week: float | None = Field(None, ge=0, le=80)
-    uses_ai: bool = False
-
-    @model_validator(mode="after")
-    def _need_template_or_text(self):
-        if self.template_task_id is None and not (self.description or "").strip():
-            raise ValueError("Isi template_task_id atau description")
-        return self
+class TemplateTaskIn(BaseModel):
+    ilo_task_id: str = Field(description="Id tugas ILO, mis. '4311-1' dari /v1/occupations/{code}/tasks")
+    hours_per_week: float = Field(ge=0, le=80)
 
 
 class AuditCreate(BaseModel):
-    occupation_code: str
+    template_tasks: list[TemplateTaskIn] = Field(default_factory=list, max_length=30)
     story: str | None = Field(None, max_length=5000, description="Cerita kerja bebas dari layar L2")
-    tasks: list[AuditTaskIn] = Field(default_factory=list, max_length=30)
+    occupation_code: str | None = Field(None, description="Default: jabatan di profil")
 
 
 class AuditTaskPatch(BaseModel):
-    """Kirim hanya kolom yang diubah. template_task_id: null = lepas kecocokan ILO."""
+    """Kirim hanya kolom yang diubah. ilo_task_id: null = lepas padanan ILO."""
 
-    description: str | None = Field(None, min_length=2, max_length=300)
+    name: str | None = Field(None, min_length=1, max_length=300)
     hours_per_week: float | None = Field(None, ge=0, le=80)
     uses_ai: bool | None = None
-    template_task_id: int | None = None
+    ilo_task_id: str | None = None
+    group: ManualGroup | None = Field(None, description="Kelompok pilihan sendiri untuk tugas tanpa padanan ILO")
 
 
 class AuditTaskCreate(BaseModel):
-    description: str = Field(min_length=2, max_length=300)
+    name: str = Field(min_length=1, max_length=300)
     hours_per_week: float = Field(ge=0, le=80)
+    ilo_task_id: str | None = None
+    group: ManualGroup | None = None
     uses_ai: bool = False
-    template_task_id: int | None = None
-
-
-class TemplateRef(BaseModel):
-    id: int
-    description: str
 
 
 class AuditTaskOut(BaseModel):
     id: uuid.UUID
-    position: int
-    description: str
+    name: str
     hours_per_week: float
-    uses_ai: bool
-    ilo_score: float
-    group: str
-    group_label: str
-    template_task: TemplateRef | None
-    match_similarity: float | None
-    match_overridden: bool
+    ilo_task_id: str | None
+    ilo_text: str | None
+    ilo_score: float | None
+    group: Group
+    confidence: str | None
     source: str
-
-
-class GroupStat(BaseModel):
-    label: str
-    task_count: int
-    hours: float
-    share: float
+    uses_ai: bool
 
 
 class AuditSummary(BaseModel):
-    total_hours: float
-    exposure_index: float
-    groups: dict[str, GroupStat]
-    ai_adoption: float
-    hours_saved_week: float
-    hours_saved_now: float
     readiness_score: int
-    readiness_components: dict[str, float]
-    readiness_weights: dict[str, float]
-    thresholds: dict[str, float]
+    hours_by_group: dict[str, float]
+    exposed_hours: float
+    hours_saved: float
+    save_factor: dict[str, float]
+
+
+class OccupationName(BaseModel):
+    code: str
+    name: str
 
 
 class AuditOut(BaseModel):
     id: uuid.UUID
-    occupation: OccupationRef
+    occupation: OccupationName
     story: str | None
-    engine: str
-    engine_detail: dict
-    summary: AuditSummary
     tasks: list[AuditTaskOut]
+    summary: AuditSummary
+    engine: str
     created_at: datetime
     updated_at: datetime
 
 
 class AuditListItem(BaseModel):
     id: uuid.UUID
-    occupation: OccupationRef
+    occupation: OccupationName
     readiness_score: int
-    exposure_index: float
-    hours_saved_week: float
-    total_hours: float
+    hours_saved: float
+    exposed_hours: float
     task_count: int
     engine: str
     created_at: datetime
@@ -108,9 +90,8 @@ class AuditListItem(BaseModel):
 class ShareCardOut(BaseModel):
     readiness_score: int
     occupation_title: str
-    hours_saved_week: float
-    ai_share: float
-    human_share: float
+    hours_saved: float
+    share: dict[str, int]
     top_ai_task: str | None
     top_human_task: str | None
     headline: str

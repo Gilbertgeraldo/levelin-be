@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 class SkillRef(BaseModel):
     id: int
+    code: str | None = None
     label: str
 
 

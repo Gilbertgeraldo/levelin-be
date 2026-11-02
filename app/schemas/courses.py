@@ -13,6 +13,7 @@ class CourseOut(BaseModel):
     description: str | None
     price: int
     is_free: bool
+    format: str | None
     duration_hours: float | None
     level: str | None
     language: str
@@ -21,6 +22,7 @@ class CourseOut(BaseModel):
     skills: list[SkillRef]
     gap_skills_covered: list[SkillRef]
     gap_covered_count: int
+    reason: str | None
 
 
 class CourseClickOut(BaseModel):

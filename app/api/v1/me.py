@@ -1,10 +1,13 @@
+import uuid
+
 from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 
 from app.api.deps import DB, CurrentUser
-from app.core.errors import ApiError
+from app.core.errors import ApiError, not_found
 from app.db.base import utcnow
-from app.models import Occupation, Organization, PassportSettings, Profile, User
+from app.models import Occupation, Organization, PassportSettings, Profile, TeamMembership, User
 from app.schemas.me import MeOut, ProfileIn
 from app.services import account, passport
 from app.services.billing import mission_quota
@@ -22,6 +25,13 @@ async def me_view(db, user: User) -> dict:
     sharing = await db.get(PassportSettings, user.id) or PassportSettings(
         user_id=user.id, share_with_org=False, public_link=False
     )
+    managers = (
+        await db.execute(
+            select(User.id, User.full_name, User.email)
+            .join(TeamMembership, TeamMembership.manager_id == User.id)
+            .where(TeamMembership.member_id == user.id)
+        )
+    ).all()
     return {
         "id": user.id,
         "email": user.email,
@@ -29,12 +39,14 @@ async def me_view(db, user: User) -> dict:
         "role": user.role,
         "department": user.department,
         "organization": {"id": org.id, "name": org.name, "slug": org.slug} if org else None,
+        "teams": [{"manager_id": mid, "manager_name": name or email or "Atasan"} for mid, name, email in managers],
         "profile": {
             "occupation": {"code": occupation.code, "title": occupation.title, "isco_code": occupation.isco_code}
             if occupation
             else None,
             "job_title": profile.job_title,
             "industry": profile.industry,
+            "experience_range": profile.experience_range,
             "years_experience": profile.years_experience,
             "goal": profile.goal,
             "consent_data_processing": profile.consent_data_processing,
@@ -50,7 +62,8 @@ async def me_view(db, user: User) -> dict:
 
 @router.get("", response_model=MeOut, summary="Profil, peran, organisasi, paket langganan")
 async def get_me(db: DB, user: CurrentUser):
-    if user.org_id is None and await accept_pending_invitation(db, user):
+    # Undangan organisasi dan undangan tim diterima saat pengguna membuka aplikasi
+    if await accept_pending_invitation(db, user):
         await db.commit()
     return await me_view(db, user)
 
@@ -69,6 +82,7 @@ async def put_profile(body: ProfileIn, db: DB, user: CurrentUser):
     profile.occupation_code = body.occupation_code
     profile.job_title = body.job_title
     profile.industry = body.industry
+    profile.experience_range = body.experience_range
     profile.years_experience = body.years_experience
     profile.goal = body.goal
     profile.consent_data_processing = body.consent_data_processing
@@ -81,6 +95,16 @@ async def put_profile(body: ProfileIn, db: DB, user: CurrentUser):
         user.full_name = body.full_name.strip()
     await db.commit()
     return await me_view(db, user)
+
+
+@router.delete("/teams/{manager_id}", status_code=204, summary="Keluar dari tim seorang atasan")
+async def leave_team(manager_id: uuid.UUID, db: DB, user: CurrentUser):
+    membership = await db.get(TeamMembership, (manager_id, user.id))
+    if membership is None:
+        raise not_found("Tim")
+    await db.delete(membership)
+    await db.commit()
+    return Response(status_code=204)
 
 
 @router.delete("", status_code=204, summary="Hapus akun dan semua data (hak hapus UU PDP)")

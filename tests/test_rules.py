@@ -1,4 +1,4 @@
-"""Unit test aturan yang menentukan angka dan keamanan keluaran."""
+"""Unit test aturan yang menentukan angka dan keamanan keluaran (sama dengan prototipe Tim Hearz)."""
 
 import hashlib
 
@@ -6,14 +6,20 @@ import pytest
 
 from app.models import Mission
 from app.services import billing, grading, scoring
-from app.services.audits import rule_extract
+from app.services.audits import parse_hours, rule_extract
 from app.services.guardrails import SentenceGuard, answer_leak_check, layoff_check, mentions_layoff, sanitize
 from app.services.textutil import extract_numbers
-from scripts._common import DEMO_DIR, load_json
+from scripts._common import ROOT, load_json
+
+RINA_STORY = (
+    "Tiap Senin aku rekap absensi dari 3 cabang ke Excel lalu kirim ke HRD, kira-kira 3 jam. Setiap hari input "
+    "faktur penjualan ke sistem akuntansi, sekitar 1,5 jam sehari. Akhir bulan bikin laporan piutang buat "
+    "manajer. Sering juga balas email vendor soal tagihan. Seminggu sekali rapat koordinasi dengan kepala cabang."
+)
 
 
-def demo_mission(slug: str) -> Mission:
-    row = next(m for m in load_json(DEMO_DIR / "missions.json")["missions"] if m["slug"] == slug)
+def mission(slug: str) -> Mission:
+    row = next(m for m in load_json(ROOT / "data" / "hearz" / "missions.json")["missions"] if m["slug"] == slug)
     return Mission(
         slug=slug,
         title=row["title"],
@@ -21,8 +27,7 @@ def demo_mission(slug: str) -> Mission:
         answer_fields=row["answer_fields"],
         answer_key=row["answer_key"],
         rubric=row["rubric"],
-        pass_score=row["pass_score"],
-        objective_weight=row["objective_weight"],
+        simulation_data=row["simulation_data"],
     )
 
 
@@ -31,152 +36,156 @@ def demo_mission(slug: str) -> Mission:
 
 @pytest.mark.parametrize(
     ("score", "group"),
-    [(0.70, "high"), (0.95, "high"), (0.6999, "medium"), (0.40, "medium"), (0.3999, "low"), (0.0, "low")],
+    [(0.70, "auto"), (0.95, "auto"), (0.6999, "assist"), (0.40, "assist"), (0.3999, "human"), (None, "none")],
 )
 def test_group_thresholds(score, group):
     assert scoring.group_for(score) == group
 
 
-def test_summarize_numbers():
+def test_manual_group_only_for_unmatched():
+    assert scoring.effective_group(None, "assist") == "assist"
+    assert scoring.effective_group(None, None) == "none"
+    assert scoring.effective_group(0.8, "human") == "auto"
+
+
+def test_summary_matches_v01_payload_example():
+    tasks = [scoring.ScoredTask(7.5, "auto"), scoring.ScoredTask(13.5, "assist"), scoring.ScoredTask(2, "human")]
+    s = scoring.summarize(tasks, set())
+    assert s["hours_by_group"] == {"auto": 7.5, "assist": 13.5, "human": 2, "none": 0}
+    assert s["exposed_hours"] == 21
+    assert s["hours_saved"] == 8.55
+    assert s["save_factor"] == {"auto": 0.6, "assist": 0.3}
+    assert s["readiness_score"] == 0
+
+
+def test_readiness_rule_from_prototype():
     tasks = [
-        scoring.ScoredTask(hours=10, score=0.8, uses_ai=True),  # high, sudah pakai AI
-        scoring.ScoredTask(hours=10, score=0.5, uses_ai=False),  # medium
-        scoring.ScoredTask(hours=20, score=0.2, uses_ai=False),  # low
+        scoring.ScoredTask(4, "auto", kind="data"),
+        scoring.ScoredTask(6, "assist", uses_ai=True, kind="dok"),
+        scoring.ScoredTask(3, "human", uses_ai=True, kind="layan"),  # tidak terpapar: tidak dihitung
+        scoring.ScoredTask(2, "none"),
     ]
-    s = scoring.summarize(tasks, proven_skills=1)
-    assert s["total_hours"] == 40
-    assert s["exposure_index"] == pytest.approx((8 + 5 + 4) / 40, abs=1e-3)
-    assert s["hours_saved_week"] == pytest.approx(10 * 0.5 + 10 * 0.25)
-    assert s["hours_saved_now"] == pytest.approx(5.0)
-    assert s["ai_adoption"] == pytest.approx(0.5)
-    expected = round(100 * (0.5 * 0.5 + 0.3 * (1 - 0.425) + 0.2 * (1 / 5)))
-    assert s["readiness_score"] == expected
-    assert s["groups"]["low"]["share"] == 0.5
+    assert scoring.readiness(tasks, set()) == 30  # 0,5 x 6 / 10
+    assert scoring.readiness(tasks, {"data"}) == 70  # (4 + 3) / 10
+    assert scoring.readiness(tasks, {"data", "dok"}) == 100
+    assert scoring.readiness([scoring.ScoredTask(5, "human")], set()) == 0
 
 
-def test_fill_missing_hours():
-    assert scoring.fill_missing_hours([10, None, None]) == [10, 15, 15]
-    # Jam yang disebut sudah melebihi 40: tetap minimal 2 jam per tugas tanpa durasi
-    assert scoring.fill_missing_hours([45, None]) == [45, 2]
-    assert scoring.fill_missing_hours([]) == []
+def test_share_by_group_sums_to_100():
+    share = scoring.share_by_group({"auto": 7.5, "assist": 13.5, "human": 2, "none": 4})
+    assert share == {"auto": 32, "assist": 59, "human": 9}
+    assert scoring.share_by_group({}) == {"auto": 0, "assist": 0, "human": 0}
+
+
+# ---------- Ekstraksi cadangan ----------
+
+
+def test_parse_hours():
+    assert parse_hours("Setiap hari input faktur sekitar 1,5 jam sehari") == ("harian", 7.5)
+    assert parse_hours("Tiap Senin rekap absensi kira-kira 3 jam") == ("mingguan", 3)
+    assert parse_hours("Akhir bulan bikin laporan 8 jam") == ("bulanan", 2)
+    assert parse_hours("Balas email vendor") == ("", scoring.DEFAULT_TASK_HOURS)
+
+
+def test_rule_extract_rina_story():
+    tasks = rule_extract(RINA_STORY)
+    assert [t.jam_per_minggu for t in tasks] == [3, 7.5, 2, 2, 2]
+    assert tasks[0].nama == "Tiap Senin aku rekap absensi dari 3 cabang ke Excel lalu kirim ke HRD"
+    assert tasks[0].alat == ["Excel"]
+    assert all(t.ilo_id is None for t in tasks)
+
+
+# ---------- Penilaian misi ----------
+
+M1_CORRECT = {"dup": "1", "total": "20.980.000", "top": "Cikarang", "ringkasan": "x"}
+M2_EMAIL = (
+    "Halo semua,\nAndi: revisi anggaran, kirim Rabu 14 Okt.\nDewi: konfirmasi katering ke 2 vendor, paling "
+    "lambat Jumat 16 Okt.\nRina: rekap absensi 3 cabang, Senin 19 Okt.\nRapat berikutnya Selasa 20 Okt jam 10."
+)
+
+
+@pytest.mark.parametrize("total", ["20.980.000", "Rp20.980.000", "20980000", "Rp20,98 jt", "20,98 juta"])
+def test_m1_total_formats(total):
+    checks = grading.objective_check(mission("rapikan-data-penjualan"), {**M1_CORRECT, "total": total})
+    assert all(c["ok"] for c in checks)
+
+
+def test_m1_wrong_answers_give_hint_not_key():
+    wrong = {"dup": "2", "total": "21.000.000", "top": "Bekasi", "ringkasan": "x"}
+    checks = grading.objective_check(mission("rapikan-data-penjualan"), wrong)
+    assert [c["ok"] for c in checks] == [False, False, False]
+    assert all(c["hint"] and "20" not in c["hint"] and "Cikarang" not in c["hint"] for c in checks)
+
+
+def test_m2_email_checks_across_subject_and_body():
+    m = mission("notulen-jadi-email")
+    assert all(c["ok"] for c in grading.objective_check(m, {"subjek": "Tindak lanjut rapat", "isi": M2_EMAIL}))
+    missing_rina = M2_EMAIL.replace("Rina: rekap absensi 3 cabang, Senin 19 Okt.\n", "")
+    oks = [c["ok"] for c in grading.objective_check(m, {"subjek": "Tindak lanjut", "isi": missing_rina})]
+    assert oks == [True, True, False, True]
+    # Nama di subjek, tanggal di isi: tetap terhitung (gabungan kolom)
+    split = {"subjek": "Untuk Andi dan Dewi", "isi": "Tenggat 14 Oktober dan 16/10"}
+    assert [c["ok"] for c in grading.objective_check(m, split)][:2] == [True, True]
+
+
+def test_m3_checks():
+    m = mission("rekap-absensi-cabang")
+    ok = grading.objective_check(m, {"telat": 10, "alpa": "Cikarang", "nama": "Fajar (Cikarang)", "catatan": "x"})
+    assert all(c["ok"] for c in ok)
+    bad = grading.objective_check(m, {"telat": 9, "alpa": "Bekasi", "nama": "Lina", "catatan": "x"})
+    assert not any(c["ok"] for c in bad)
+
+
+def test_pass_rule():
+    all_ok = [{"ok": True}, {"ok": True}]
+    assert grading.is_passed(all_ok, 3.25, 0)
+    assert not grading.is_passed(all_ok, 2.75, 100)
+    assert not grading.is_passed([{"ok": True}, {"ok": False}], 4.0, 100)
+    assert grading.is_passed(all_ok, None, 25)  # tanpa LLM: cukup 25 kata
+    assert not grading.is_passed(all_ok, None, 24)
+
+
+def test_validate_answers_rejects_missing_and_unknown():
+    with pytest.raises(Exception) as exc:
+        grading.validate_answers(mission("rapikan-data-penjualan"), {"dup": "abc", "kolom_asing": 1})
+    fields = {d["field_id"] for d in exc.value.details}
+    assert {"dup", "kolom_asing", "total", "top", "ringkasan"} <= fields
+
+
+def test_data_text_for_table_and_notes():
+    assert grading.data_text(mission("rapikan-data-penjualan")).splitlines()[0] == "No | Tanggal | Cabang | Pelanggan | Nilai | Status"
+    assert "Rapat koordinasi cabang" in grading.data_text(mission("notulen-jadi-email"))
 
 
 # ---------- Guardrail ----------
 
 
 def test_layoff_sentences_are_replaced():
-    text = "Skormu 60. Kamu bisa di-PHK kalau tidak belajar. Ayo mulai dari satu tugas."
-    clean, flagged = sanitize(text)
-    assert flagged
-    assert "PHK" not in clean
-    assert "Ayo mulai" in clean
+    clean, flagged = sanitize("Skormu 60. Kamu bisa di-PHK kalau tidak belajar. Ayo mulai dari satu tugas.")
+    assert flagged and "PHK" not in clean and "Ayo mulai" in clean
     assert mentions_layoff("Posisimu akan hilang karena AI")
     assert not mentions_layoff("Tugas merekap data bisa dibantu AI")
 
 
 def test_sentence_guard_across_chunks():
     guard = SentenceGuard([layoff_check])
-    out = ""
-    for chunk in ["Halo. Pekerjaan", "mu akan hi", "lang tahun depan. ", "Tetap semangat!"]:
-        out += guard.feed(chunk)
+    out = "".join(guard.feed(c) for c in ["Halo. Pekerjaan", "mu akan hi", "lang tahun depan. ", "Tetap semangat!"])
     out += guard.flush()
-    assert "hilang" not in out
-    assert out.startswith("Halo. ")
-    assert out.endswith("Tetap semangat!")
-    assert guard.flagged
+    assert "hilang" not in out and out.startswith("Halo. ") and out.endswith("Tetap semangat!")
 
 
-def test_answer_leak_check():
-    mission = demo_mission("rekap-penjualan-mingguan")
-    check = answer_leak_check(mission.answer_key)
-    assert check("Totalnya Rp 162.000.000 ya.") is not None
-    assert check("Total 162,000,000.") is not None
+def test_answer_leak_check_m1():
+    check = answer_leak_check(mission("rapikan-data-penjualan").answer_key)
+    assert check("Totalnya Rp 20.980.000 ya.") is not None
+    assert check("Totalnya sekitar Rp20,98 juta.") is not None
     assert check("Coba jumlahkan sendiri dari tabel.") is None
-    # Opsi pilihan terlihat oleh pengguna, jadi menyebut "Timur" bukan bocoran
-    assert check("Data wilayah Timur ada di baris ketiga.") is None
-
-
-def test_leak_guard_false_skips_value_from_data():
-    mission = demo_mission("balas-keluhan-pelanggan")
-    check = answer_leak_check(mission.answer_key)
-    assert check("Ongkirnya Rp18.000 sesuai data pesanan.") is None
+    assert check("Data Cikarang ada di baris ketiga.") is None  # opsi pilihan memang terlihat
 
 
 def test_extract_numbers_formats():
     assert 1250000.5 in extract_numbers("Rp1.250.000,5")
     assert 1250000.5 in extract_numbers("1,250,000.5")
-    assert 8.0 in extract_numbers("naik 8%")
-
-
-# ---------- Penilaian objektif ----------
-
-
-def test_objective_all_correct():
-    mission = demo_mission("rekap-penjualan-mingguan")
-    answers = {
-        "total_penjualan": "Rp162.000.000",
-        "wilayah_tertinggi": "Timur",
-        "perubahan_persen": 8,
-        "koreksi_ringkasan_ai": "Totalnya 162 juta bukan 165, naiknya 8% bukan 10%, tertinggi Timur.",
-        "ringkasan": "x",
-    }
-    score, checks = grading.objective_check(mission, answers)
-    assert score == 100
-    assert all(c["passed"] for c in checks)
-
-
-def test_objective_wrong_answers_give_hint_not_key():
-    mission = demo_mission("rekap-penjualan-mingguan")
-    answers = {"total_penjualan": 165000000, "wilayah_tertinggi": "Utara", "perubahan_persen": 10,
-               "koreksi_ringkasan_ai": "tidak ada", "ringkasan": "x"}
-    score, checks = grading.objective_check(mission, answers)
-    assert score == 0
-    for c in checks:
-        assert "162" not in c["feedback"]
-        assert "Timur" not in c["feedback"]
-
-
-@pytest.mark.parametrize(
-    ("value", "ok"),
-    [("Andi, Dodi", True), ("dodi dan andi", True), ("Andi, Bunga, Dodi", False), ("Andi", False), ("Andika, Dodi", False)],
-)
-def test_shortlist_regex(value, ok):
-    mission = demo_mission("saring-kandidat-adil")
-    _, checks = grading.objective_check(mission, {"shortlist": value, "catatan_bias_ai": "", "deskripsi_lowongan": ""})
-    assert next(c for c in checks if c["id"] == "k_shortlist")["passed"] is ok
-
-
-def test_validate_answers_rejects_missing_and_unknown():
-    mission = demo_mission("rekap-penjualan-mingguan")
-    with pytest.raises(Exception) as exc:
-        grading.validate_answers(mission, {"total_penjualan": "abc", "kolom_asing": 1})
-    details = exc.value.details
-    fields = {d["field_id"] for d in details}
-    assert {"total_penjualan", "kolom_asing", "ringkasan"} <= fields
-
-
-def test_heuristic_rubric_and_combine():
-    mission = demo_mission("rekap-penjualan-mingguan")
-    rubric = grading.heuristic_rubric(mission, {"koreksi_ringkasan_ai": "salah, seharusnya 162 dan Timur"})
-    assert 0 <= rubric["score"] <= 100
-    assert {c["id"] for c in rubric["criteria"]} == {r["id"] for r in mission.rubric}
-    assert grading.combine(mission, 100, 50) == 75
-
-
-# ---------- Ekstraksi cadangan ----------
-
-
-def test_rule_extract():
-    story = (
-        "Setiap hari saya merekap data penjualan di Excel sekitar 2 jam. "
-        "Lalu saya membalas email pelanggan pakai ChatGPT. Saya juga mengarsipkan faktur."
-    )
-    tasks = rule_extract(story)
-    assert len(tasks) == 3
-    assert tasks[0].hours_per_week == 10  # 2 jam/hari x 5 hari
-    assert tasks[0].description == "Merekap data penjualan di Excel"
-    assert tasks[1].uses_ai is True
-    assert tasks[2].hours_per_week is None
+    assert 20980000 in extract_numbers("Rp20,98 jt")
 
 
 # ---------- Pembayaran ----------

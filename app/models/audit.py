@@ -1,10 +1,12 @@
 import uuid
+from datetime import datetime
 
 from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, Timestamps, UUIDPk
-from app.db.types import JSONType
+from app.db.base import Base, Timestamps, UUIDPk, utcnow
+from app.db.types import JSONType, UTCDateTime
+from app.models.reference import OccupationTask
 
 
 class Audit(UUIDPk, Timestamps, Base):
@@ -46,9 +48,28 @@ class AuditTask(UUIDPk, Timestamps, Base):
         ForeignKey("occupation_tasks.id", ondelete="SET NULL")
     )
     match_similarity: Mapped[float | None] = mapped_column(Float)
-    ilo_score: Mapped[float] = mapped_column(Float, default=0)
-    group: Mapped[str] = mapped_column(String(8), default="low")  # high | medium | low
-    source: Mapped[str] = mapped_column(String(16), default="story")  # story | template | manual
+    # None bila tugas tidak cocok dengan tugas ILO mana pun
+    ilo_score: Mapped[float | None] = mapped_column(Float)
+    group: Mapped[str] = mapped_column(String(8), default="none")  # auto | assist | human | none
+    # Kelompok pilihan pengguna untuk tugas yang tidak terpetakan
+    manual_group: Mapped[str | None] = mapped_column(String(8))
+    confidence: Mapped[str | None] = mapped_column(String(16))  # template | tinggi | sedang | rendah
+    # template | story | template+story | manual
+    source: Mapped[str] = mapped_column(String(16), default="story")
     match_overridden: Mapped[bool] = mapped_column(Boolean, default=False)
 
     audit: Mapped[Audit] = relationship(back_populates="tasks")
+    template: Mapped[OccupationTask | None] = relationship(lazy="selectin")
+
+
+class ReadinessSnapshot(Base):
+    """Skor Kesiapan terakhir pengguna per bulan, untuk grafik tren dashboard."""
+
+    __tablename__ = "readiness_snapshots"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    month: Mapped[str] = mapped_column(String(7), primary_key=True)  # YYYY-MM
+    score: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow, onupdate=utcnow)

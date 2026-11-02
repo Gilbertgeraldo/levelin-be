@@ -61,14 +61,14 @@ def _service(handler, **overrides) -> tuple[LLMService, list]:
 
 
 async def test_generate_json_main_tier_request_shape():
-    payload = {"tasks": [{"description": "Merekap data", "hours_per_week": 5, "uses_ai": False}]}
+    payload = {"tasks": [{"nama": "Merekap data", "frekuensi": "mingguan", "jam_per_minggu": 5, "alat": [], "ilo_id": "4311-1", "keyakinan": "tinggi", "alasan": "cocok"}]}
     service, seen = _service(lambda r: httpx2.Response(200, json=_message(json.dumps(payload))))
     info = LLMCallInfo()
     result = await service.generate_json(
         tier="main", system="sys", prompt="cerita", schema=EXTRACTION_SCHEMA, model_cls=Extraction,
         effort="low", info=info,
     )
-    assert result.tasks[0].description == "Merekap data"
+    assert result.tasks[0].nama == "Merekap data" and result.tasks[0].ilo_id == "4311-1"
     assert (info.model, info.input_tokens, info.output_tokens) == ("claude-opus-5-5", 120, 30)
 
     request = seen[0]

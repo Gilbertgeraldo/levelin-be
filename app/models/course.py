@@ -26,6 +26,7 @@ class Course(UUIDPk, Timestamps, Base):
     price: Mapped[int] = mapped_column(Integer, default=0)  # Rupiah
     duration_hours: Mapped[float | None] = mapped_column(Float)
     level: Mapped[str | None] = mapped_column(String(20))  # pemula | menengah | lanjut
+    format: Mapped[str | None] = mapped_column(String(120))  # mis. "Bootcamp online live"
     language: Mapped[str] = mapped_column(String(10), default="id")
     rating: Mapped[float | None] = mapped_column(Float)
     is_partner: Mapped[bool] = mapped_column(Boolean, default=False)

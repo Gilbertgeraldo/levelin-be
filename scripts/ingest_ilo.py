@@ -8,6 +8,8 @@
 - --translation (opsional): kolom task_en, task_id untuk label Bahasa Indonesia.
 - --occupations (opsional): kolom isco_code, mean_score, gradient (0-4) per jabatan.
   Tanpa berkas ini avg_exposure dihitung dari rata-rata skor tugas.
+- Kolom opsional `kind` (data|dok|hr|layan|koord|fisik) menghubungkan tugas ke misi latihan; tanpa itu
+  Skor Kesiapan hanya naik lewat tugas yang ditandai "sudah pakai AI".
 """
 
 import argparse
@@ -40,9 +42,12 @@ async def main(args) -> None:
             continue
         tasks[isco].append(
             {
+                # Id tugas yang dipakai aplikasi, mis. "4311-1" (urutan dalam berkas)
+                "code": f"{isco}-{len(tasks[isco]) + 1}",
                 "description": translations.get(task_en, task_en),
                 "description_en": task_en,
                 "ilo_score": max(0.0, min(1.0, score)),
+                "kind": row.get("kind") or None,
             }
         )
 

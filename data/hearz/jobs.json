@@ -1,0 +1,142 @@
+{
+ "_note": "Lowongan contoh (fiktif) dari prototipe. Produksi memakai Karirhub, platform loker mitra, dan perusahaan klien.",
+ "organizations": [
+  {
+   "name": "PT Sinar Distribusi",
+   "slug": "sinar-distribusi"
+  }
+ ],
+ "departments": [
+  {
+   "name": "Keuangan & Akuntansi",
+   "headcount": 12,
+   "share": {
+    "auto": 34,
+    "assist": 46,
+    "human": 20
+   },
+   "readiness": 44
+  },
+  {
+   "name": "Operasional & Logistik",
+   "headcount": 14,
+   "share": {
+    "auto": 18,
+    "assist": 44,
+    "human": 38
+   },
+   "readiness": 31
+  },
+  {
+   "name": "Layanan Pelanggan",
+   "headcount": 10,
+   "share": {
+    "auto": 22,
+    "assist": 52,
+    "human": 26
+   },
+   "readiness": 39
+  },
+  {
+   "name": "HR & GA",
+   "headcount": 8,
+   "share": {
+    "auto": 26,
+    "assist": 50,
+    "human": 24
+   },
+   "readiness": 47
+  },
+  {
+   "name": "Gudang",
+   "headcount": 4,
+   "share": {
+    "auto": 6,
+    "assist": 30,
+    "human": 64
+   },
+   "readiness": 22
+  }
+ ],
+ "jobs": [
+  {
+   "title": "Staf Akuntansi Pelaksana",
+   "company": "PT Sinar Distribusi",
+   "org_slug": "sinar-distribusi",
+   "location": "Bekasi",
+   "source": "internal",
+   "source_verified": true,
+   "skills": [
+    "keuangan",
+    "excel",
+    "analisis",
+    "ai"
+   ]
+  },
+  {
+   "title": "Asisten Analis Data Operasional",
+   "company": "PT Contoh Logistik Nusantara",
+   "org_slug": null,
+   "location": "Cikarang",
+   "source": "karirhub",
+   "source_verified": true,
+   "skills": [
+    "analisis",
+    "excel",
+    "kualitas",
+    "ai"
+   ]
+  },
+  {
+   "title": "Admin Keuangan Senior",
+   "company": "CV Contoh Retail Jaya",
+   "org_slug": null,
+   "location": "Jakarta Timur",
+   "source": "karirhub",
+   "source_verified": true,
+   "skills": [
+    "keuangan",
+    "excel",
+    "menulis"
+   ]
+  },
+  {
+   "title": "Staf Administrasi HR",
+   "company": "PT Contoh Manufaktur",
+   "org_slug": null,
+   "location": "Karawang",
+   "source": "mitra",
+   "source_verified": true,
+   "skills": [
+    "sdm",
+    "excel",
+    "menulis"
+   ]
+  },
+  {
+   "title": "Koordinator Admin Cabang",
+   "company": "PT Sinar Distribusi",
+   "org_slug": "sinar-distribusi",
+   "location": "Karawang",
+   "source": "internal",
+   "source_verified": true,
+   "skills": [
+    "supervisi",
+    "proyek",
+    "excel",
+    "ai"
+   ]
+  },
+  {
+   "title": "Admin Data Entry (kerja dari rumah)",
+   "company": "Akun “LokerCepat88”",
+   "org_slug": null,
+   "location": "Online",
+   "source": "tidak",
+   "source_verified": false,
+   "skills": [
+    "excel"
+   ]
+  }
+ ]
+}

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Float, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, Timestamps, UUIDPk, utcnow
@@ -21,6 +21,11 @@ class PassportEntry(UUIDPk, Base):
     attempt_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("attempts.id", ondelete="CASCADE"))
     mission_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("missions.id", ondelete="CASCADE"))
     score: Mapped[float] = mapped_column(Float)
+    rubric_avg: Mapped[float | None] = mapped_column(Float)
+    checks_passed: Mapped[int | None] = mapped_column(Integer)
+    checks_total: Mapped[int | None] = mapped_column(Integer)
+    # Cuplikan hasil kerja tertulis sebagai bukti
+    excerpt: Mapped[str | None] = mapped_column(Text)
     earned_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
 

@@ -16,6 +16,8 @@ class ReviewAttempt(BaseModel):
     score: float | None
     objective_score: float | None
     rubric_score: float | None
+    rubric_avg: float | None
+    ai_usage: str | None
     passed: bool | None
     engine: str | None
     answers: dict | None
@@ -48,13 +50,14 @@ class ReviewOut(BaseModel):
 
 class ReviewDecisionIn(BaseModel):
     decision: Literal["approve", "override"]
-    new_score: float | None = Field(None, ge=0, le=100)
+    passed: bool | None = Field(None, description="Wajib untuk override: hasil akhir lulus atau tidak")
+    new_score: float | None = Field(None, ge=0, le=100, description="Nilai 0-100 untuk Paspor (opsional)")
     note: str | None = Field(None, max_length=2000)
 
     @model_validator(mode="after")
-    def _score_for_override(self):
-        if self.decision == "override" and self.new_score is None:
-            raise ValueError("new_score wajib diisi untuk keputusan override")
+    def _passed_for_override(self):
+        if self.decision == "override" and self.passed is None:
+            raise ValueError("passed wajib diisi untuk keputusan override")
         return self
 
 
@@ -65,6 +68,7 @@ class AnswerFieldIn(BaseModel):
     options: list[str] | None = None
     required: bool = True
     placeholder: str | None = None
+    rows: int | None = Field(None, ge=1, le=30, description="Tinggi area teks untuk long_text")
 
 
 class RubricItemIn(BaseModel):
@@ -78,6 +82,9 @@ class RubricItemIn(BaseModel):
 class AnswerKeyIn(BaseModel):
     id: str = Field(min_length=1, max_length=60)
     field_id: str
+    field_ids: list[str] | None = Field(
+        None, description="Periksa gabungan beberapa kolom (mis. subjek + isi email) alih-alih field_id saja"
+    )
     type: Literal["exact", "number", "contains", "regex", "choice"]
     expected: Any
     tolerance: float | None = Field(None, ge=0)
@@ -103,8 +110,10 @@ class MissionAdminIn(BaseModel):
     answer_key: list[AnswerKeyIn] = Field(default_factory=list)
     occupation_isco_codes: list[str] = Field(default_factory=list)
     skill_ids: list[int] = Field(default_factory=list)
+    kind: str | None = Field(None, max_length=16, description="Jenis pekerjaan yang dilatih (lihat task_kinds)")
     difficulty: int = Field(1, ge=1, le=3)
     est_minutes: int = Field(30, ge=5, le=480)
+    duration_label: str | None = Field(None, max_length=40)
     pass_score: int = Field(70, ge=0, le=100)
     objective_weight: float = Field(0.4, ge=0, le=1)
     is_published: bool = True
@@ -123,8 +132,9 @@ class MissionAdminIn(BaseModel):
         if len({k.id for k in self.answer_key}) != len(self.answer_key):
             raise ValueError("id answer_key harus unik")
         for key in self.answer_key:
-            if key.field_id not in field_ids:
-                raise ValueError(f"answer_key {key.id} merujuk kolom yang tidak ada: {key.field_id}")
+            for fid in [key.field_id, *(key.field_ids or [])]:
+                if fid not in field_ids:
+                    raise ValueError(f"answer_key {key.id} merujuk kolom yang tidak ada: {fid}")
         return self
 
 
@@ -141,8 +151,10 @@ class MissionAdminOut(BaseModel):
     answer_key: list[dict]
     occupation_isco_codes: list[str]
     skills: list[SkillRef]
+    kind: str | None
     difficulty: int
     est_minutes: int
+    duration_label: str | None
     pass_score: int
     objective_weight: float
     is_published: bool

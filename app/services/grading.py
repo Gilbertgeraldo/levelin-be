@@ -1,6 +1,9 @@
-"""Penilaian misi: cek objektif oleh skrip (kunci jawaban tidak pernah keluar server),
-lalu rubrik oleh LLM dengan keluaran JSON tervalidasi. Bila LLM gagal, dipakai penilaian
-heuristik dan hasilnya otomatis masuk antrean review manusia.
+"""Penilaian misi, sama dengan prototipe Tim Hearz.
+
+1. Cek objektif oleh skrip; kunci jawaban tidak pernah keluar server.
+2. Rubrik 4 kriteria (skala 1-4) oleh LLM dengan keluaran JSON tervalidasi.
+3. Lulus = semua cek objektif benar DAN rata-rata rubrik >= 3. Tanpa LLM (cadangan): semua cek benar
+   dan jawaban tertulis minimal 25 kata; hasil cadangan otomatis masuk antrean review manusia.
 """
 
 import json
@@ -15,7 +18,9 @@ from app.services.guardrails import answer_leak_check, layoff_check, sanitize
 from app.services.llm import LLMCallInfo, LLMError, LLMService
 from app.services.textutil import extract_numbers, normalize, to_text
 
-MAX_LEVEL = 4
+MAX_SCORE = 4
+PASS_RUBRIC_AVG = 3.0
+MIN_WORDS_WITHOUT_RUBRIC = 25
 FEEDBACK_LEAK_REPLACEMENT = "Periksa lagi bagian ini pada jawabanmu. "
 
 
@@ -50,19 +55,30 @@ def validate_answers(mission: Mission, answers: dict) -> dict:
     return clean
 
 
+def written_words(answers: dict) -> int:
+    return len(to_text(answers).split())
+
+
 # ---------- Cek objektif (skrip) ----------
+
+
+def _check_value(check: dict, answers: dict):
+    """Nilai yang diperiksa: satu kolom, atau beberapa kolom digabung (mis. subjek + isi email)."""
+    if check.get("field_ids"):
+        return "\n".join(to_text(answers.get(f)) for f in check["field_ids"])
+    return answers.get(check["field_id"])
 
 
 def _check_one(check: dict, value) -> bool:
     kind = check.get("type")
     expected = check.get("expected")
-    if value is None:
+    if value is None or (isinstance(value, str) and not value.strip()):
         return False
     if kind == "number":
         candidates = {float(value)} if isinstance(value, int | float) else extract_numbers(str(value))
         target = float(expected)
-        tolerance = float(check.get("tolerance", 0))
-        if "tolerance_pct" in check:
+        tolerance = float(check.get("tolerance") or 0)
+        if check.get("tolerance_pct"):
             tolerance = max(tolerance, abs(target) * float(check["tolerance_pct"]) / 100)
         return any(abs(c - target) <= tolerance + 1e-9 for c in candidates)
     text = normalize(to_text(value))
@@ -75,90 +91,78 @@ def _check_one(check: dict, value) -> bool:
     if kind == "contains":
         keywords = expected if isinstance(expected, list) else [expected]
         hits = sum(1 for k in keywords if normalize(str(k)) in text)
-        return hits >= int(check.get("min_matches", len(keywords)))
+        return hits >= int(check.get("min_matches") or len(keywords))
     if kind == "regex":
         return re.search(str(expected), to_text(value), re.IGNORECASE) is not None
     return False
 
 
-def objective_check(mission: Mission, answers: dict) -> tuple[float | None, list[dict]]:
-    key = mission.answer_key or []
-    if not key:
-        return None, []
+def objective_check(mission: Mission, answers: dict) -> list[dict]:
+    """Hasil per cek: {id, label, ok, hint}. Hint hanya untuk cek yang gagal dan tidak membocorkan jawaban."""
     labels = {f["id"]: f.get("label", f["id"]) for f in mission.answer_fields or []}
-    total = got = 0.0
     results = []
-    for check in key:
-        weight = float(check.get("weight", 1))
-        ok = _check_one(check, answers.get(check["field_id"]))
-        total += weight
-        got += weight if ok else 0
+    for check in mission.answer_key or []:
+        ok = _check_one(check, _check_value(check, answers))
         results.append(
             {
                 "id": check["id"],
-                "field_id": check["field_id"],
                 "label": check.get("label") or labels.get(check["field_id"], check["field_id"]),
-                "passed": ok,
-                "weight": weight,
-                # hint ditulis tanpa membocorkan jawaban
-                "feedback": "Tepat." if ok else check.get("hint", "Periksa lagi bagian ini."),
+                "ok": ok,
+                "hint": None if ok else check.get("hint", "Periksa lagi bagian ini."),
             }
         )
-    return round(100 * got / total, 1) if total else None, results
+    return results
 
 
 # ---------- Rubrik (LLM) ----------
 
 
-class RubricCriterion(BaseModel):
+class RubricItem(BaseModel):
     id: str
-    level: int = Field(ge=1, le=MAX_LEVEL)
-    feedback: str
+    score: int = Field(ge=1, le=MAX_SCORE)
+    note: str
 
 
 class RubricGrade(BaseModel):
-    criteria: list[RubricCriterion]
-    overall_feedback: str
+    rubric: list[RubricItem]
+    feedback: str
+    next_step: str
 
 
-def _rubric_score(rubric: list[dict], levels: dict[str, int]) -> float:
-    total = sum(float(r.get("weight", 1)) for r in rubric)
-    if not total:
-        return 0.0
-    got = sum(float(r.get("weight", 1)) * (levels[r["id"]] - 1) / (MAX_LEVEL - 1) for r in rubric)
-    return round(100 * got / total, 1)
+def data_text(mission: Mission) -> str:
+    data = mission.simulation_data or {}
+    if "table" in data:
+        table = data["table"]
+        rows = [" | ".join(table.get("columns", []))] + [" | ".join(map(str, r)) for r in table.get("rows", [])]
+        return "\n".join(rows)
+    if "notes" in data:
+        return str(data["notes"])
+    return json.dumps(data, ensure_ascii=False, indent=1)
 
 
-def _criteria_view(rubric: list[dict], levels: dict[str, int], feedback: dict[str, str]) -> list[dict]:
-    return [
-        {
-            "id": r["id"],
-            "criterion": r.get("criterion", r["id"]),
-            "weight": float(r.get("weight", 1)),
-            "level": levels[r["id"]],
-            "max_level": MAX_LEVEL,
-            "feedback": feedback.get(r["id"], ""),
-        }
-        for r in rubric
-    ]
+def answers_text(mission: Mission, answers: dict) -> str:
+    return "\n\n".join(
+        f"{f.get('label', f['id'])}:\n{to_text(answers.get(f['id']))}" for f in mission.answer_fields or []
+    )
 
 
 async def llm_rubric(
-    llm: LLMService, mission: Mission, answers: dict, objective: list[dict], info: LLMCallInfo
+    llm: LLMService,
+    mission: Mission,
+    answers: dict,
+    ai_usage: str | None,
+    checks: list[dict],
+    info: LLMCallInfo,
 ) -> dict:
     rubric = mission.rubric or []
-    payload = {
-        "brief": mission.brief,
-        "rubrik": [
-            {"id": r["id"], "kriteria": r.get("criterion"), "deskripsi": r.get("description"), "bobot": r.get("weight", 1)}
-            for r in rubric
-        ],
-        "kolom_jawaban": [{"id": f["id"], "label": f.get("label")} for f in mission.answer_fields or []],
-        "hasil_cek_objektif": [{"kolom": o["label"], "benar": o["passed"]} for o in objective],
-    }
     prompt = (
-        "```json\n" + json.dumps(payload, ensure_ascii=False, indent=1) + "\n```\n\n"
-        "<jawaban>\n" + json.dumps(answers, ensure_ascii=False, indent=1) + "\n</jawaban>"
+        f"Misi: {mission.title}\nBrief: {mission.brief}\n\nData misi:\n{data_text(mission)}\n\n"
+        "Hasil cek otomatis dari aplikasi (sudah final, jangan diubah):\n"
+        + "\n".join(f"- {c['label']}: {'lulus' if c['ok'] else 'tidak lulus'}" for c in checks)
+        + "\n\nRubrik:\n"
+        + "\n".join(f"- {r['id']}: {r['criterion']}" for r in rubric)
+        + f"\n\n<jawaban>\n{answers_text(mission, answers)[:4000]}\n</jawaban>"
+        + (f"\n\nCara staf memakai AI: <jawaban>{ai_usage[:1000]}</jawaban>" if ai_usage else "")
     )
     grade = await llm.generate_json(
         tier="main",
@@ -170,54 +174,64 @@ async def llm_rubric(
         effort="medium",
         info=info,
     )
-    expected_ids = [r["id"] for r in rubric]
-    got_ids = [c.id for c in grade.criteria]
-    if sorted(got_ids) != sorted(expected_ids):
+    by_id = {item.id: item for item in grade.rubric}
+    if sorted(by_id) != sorted(r["id"] for r in rubric) or len(grade.rubric) != len(rubric):
         raise LLMError("Kriteria rubrik dari LLM tidak lengkap atau ganda")
+
     # Jawaban yang sudah benar boleh disebut; yang masih salah tidak boleh terbongkar
-    failed = {o["id"] for o in objective if not o["passed"]}
+    failed = {c["id"] for c in checks if not c["ok"]}
     unrevealed = [k for k in mission.answer_key or [] if k["id"] in failed]
-    checks = [layoff_check, answer_leak_check(unrevealed, FEEDBACK_LEAK_REPLACEMENT)]
+    guards = [layoff_check, answer_leak_check(unrevealed, FEEDBACK_LEAK_REPLACEMENT)]
 
     def clean(text: str) -> str:
-        return sanitize(text.strip(), checks)[0].strip()
+        return sanitize(text.strip(), guards)[0].strip()
 
-    levels = {c.id: c.level for c in grade.criteria}
-    feedback = {c.id: clean(c.feedback) for c in grade.criteria}
+    items = [
+        {"criterion": r["criterion"], "score": by_id[r["id"]].score, "note": clean(by_id[r["id"]].note)}
+        for r in rubric
+    ]
     return {
-        "score": _rubric_score(rubric, levels),
-        "criteria": _criteria_view(rubric, levels, feedback),
-        "overall_feedback": clean(grade.overall_feedback),
+        "rubric": items,
+        "rubric_avg": round(sum(i["score"] for i in items) / len(items), 2) if items else None,
+        "feedback": clean(grade.feedback),
+        "next_step": clean(grade.next_step),
     }
 
 
-def heuristic_rubric(mission: Mission, answers: dict) -> dict:
-    """Penilaian sementara tanpa LLM: cakupan kata kunci rubrik dan kelengkapan jawaban."""
-    rubric = mission.rubric or []
-    text = normalize(to_text(answers))
-    words = len(text.split())
-    levels: dict[str, int] = {}
-    feedback: dict[str, str] = {}
-    for r in rubric:
-        keywords = r.get("keywords") or []
-        if keywords:
-            ratio = sum(1 for k in keywords if normalize(k) in text) / len(keywords)
-            levels[r["id"]] = 1 + round(ratio * (MAX_LEVEL - 1))
-        else:
-            levels[r["id"]] = 3 if words >= 60 else 2 if words >= 15 else 1
-        feedback[r["id"]] = "Penilaian otomatis sementara; akan ditinjau tim Levelin."
-    return {
-        "score": _rubric_score(rubric, levels),
-        "criteria": _criteria_view(rubric, levels, feedback),
-        "overall_feedback": (
-            "Nilai ini sementara karena penilai AI sedang tidak tersedia. Tim peninjau akan "
-            "memeriksa jawabanmu dan nilai bisa berubah."
-        ),
-    }
+def fallback_feedback(checks: list[dict], words: int) -> dict:
+    """Umpan balik tanpa LLM, sama dengan mode demo prototipe."""
+    all_ok = all(c["ok"] for c in checks)
+    if not all_ok:
+        feedback = (
+            "Masih ada cek otomatis yang belum lulus. Lihat petunjuk di bawah tiap cek, perbaiki, "
+            "lalu kumpulkan lagi."
+        )
+        next_step = "Perbaiki bagian yang belum lulus sesuai petunjuknya."
+    elif words < MIN_WORDS_WITHOUT_RUBRIC:
+        feedback = (
+            "Angkanya tepat. Lengkapi bagian tulisan (ringkasan atau catatan) minimal beberapa kalimat, "
+            "lalu kumpulkan lagi."
+        )
+        next_step = "Tambahkan ringkasan atau catatan beberapa kalimat."
+    else:
+        feedback = (
+            "Angkanya tepat dan jawabanmu lengkap. Penilai AI sedang tidak tersedia, jadi kualitas "
+            "tulisanmu akan ditinjau tim Levelin."
+        )
+        next_step = "Tunggu hasil tinjauan untuk umpan balik tulisan."
+    return {"rubric": None, "rubric_avg": None, "feedback": feedback, "next_step": next_step}
 
 
-def combine(mission: Mission, objective_score: float | None, rubric_score: float) -> float:
-    if objective_score is None:
-        return rubric_score
-    w = mission.objective_weight
-    return round(w * objective_score + (1 - w) * rubric_score, 1)
+def is_passed(checks: list[dict], rubric_avg: float | None, words: int) -> bool:
+    if not all(c["ok"] for c in checks):
+        return False
+    if rubric_avg is not None:
+        return rubric_avg >= PASS_RUBRIC_AVG
+    return words >= MIN_WORDS_WITHOUT_RUBRIC
+
+
+def display_score(checks: list[dict], rubric_avg: float | None) -> float:
+    """Nilai 0-100 untuk Paspor dan peninjau: rubrik bila ada, selain itu porsi cek yang benar."""
+    if rubric_avg is not None:
+        return round(100 * rubric_avg / MAX_SCORE, 1)
+    return round(100 * sum(c["ok"] for c in checks) / len(checks), 1) if checks else 0.0
