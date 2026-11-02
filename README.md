@@ -1,12 +1,13 @@
 # Levelin Backend
 
-FastAPI untuk aplikasi pekerja (Flutter) dan dashboard HR (web), sesuai *Rancangan endpoint backend v0.2*.
-Semua endpoint di daftar lengkap rancangan sudah ada (61 operasi). Dokumentasi interaktif ada di `/docs`.
+FastAPI untuk aplikasi pekerja (Flutter) dan web dashboard HR & atasan tim, sesuai *Rancangan endpoint backend
+v0.2*, payload v0.1 (`API_ENDPOINTS.md`), dan prototipe `Levelin.html` Tim Hearz. Dokumentasi interaktif ada di
+`/docs`; kontrak mesin di `/openapi.json`.
 
 ```
-Flutter / Web HR ──JWT Supabase──▶ FastAPI ──▶ Gemini, Groq, atau Claude (ekstraksi, atasan AI, rubrik, penjelasan)
-                                     │     └──▶ Voyage (embedding), cadangan: embedding hashing lokal
-                                     └──▶ Postgres + pgvector (Supabase)
+Flutter (pekerja) ─┐                ┌─▶ Gemini, Groq, atau Claude (ekstraksi, atasan AI, rubrik, penjelasan)
+                   ├─JWT Supabase─▶ FastAPI ─┼─▶ Voyage (embedding), cadangan: embedding hashing lokal
+Web (HR, atasan) ──┘                └─▶ Postgres + pgvector (Supabase)
 ```
 
 ## Menjalankan lokal
@@ -15,7 +16,7 @@ Flutter / Web HR ──JWT Supabase──▶ FastAPI ──▶ Gemini, Groq, ata
 uv sync
 cp .env.example .env            # isi SUPABASE_JWT_SECRET minimal
 uv run alembic upgrade head
-uv run python -m scripts.seed_demo --sample-workers 15
+uv run python -m scripts.seed_demo --sample-workers
 uv run fastapi dev main.py      # http://localhost:8000/docs
 ```
 
@@ -23,105 +24,106 @@ Default `.env.example` memakai SQLite supaya bisa langsung jalan. Untuk Supabase
 connection string Postgres (format `postgresql://...` otomatis diubah ke driver asyncpg; untuk pooler port 6543
 set `DB_PGBOUNCER=true`). Migrasi mengaktifkan `vector` dan, bila tersedia, `pg_trgm`.
 
-Tanpa key penyedia yang dipilih di `LLM_PROVIDER` (`GEMINI_API_KEY`, `GROQ_API_KEY`, atau `ANTHROPIC_API_KEY`) dan `VOYAGE_API_KEY`,
-semua fitur tetap jalan lewat cadangan berbasis aturan, dan responsnya ditandai `engine: "fallback"`.
-Cek penyedia yang aktif di `GET /health`.
+Tanpa key penyedia yang dipilih di `LLM_PROVIDER` (`GEMINI_API_KEY`, `GROQ_API_KEY`, atau `ANTHROPIC_API_KEY`),
+semua fitur tetap jalan lewat cadangan berbasis aturan (sama dengan mode demo prototipe), dan responsnya
+ditandai `engine: "fallback"`. Cek penyedia yang aktif di `GET /health`.
 
-### Token untuk mencoba
+### Akun demo (token dev)
 
-Di produksi aplikasi login langsung ke Supabase Auth dan mengirim access token-nya. Untuk dev:
+Di produksi aplikasi login ke Supabase Auth dan mengirim access token-nya. Untuk dev, `seed_demo` membuat
+organisasi fiktif **PT Sinar Distribusi** (48 karyawan contoh di 5 departemen, sama seperti `DEPTS` prototipe)
+dan undangan untuk tiga akun:
 
 ```bash
-uv run python -m scripts.dev_token --email budi@contoh-sejahtera.test --name "Budi Santoso"
-uv run python -m scripts.dev_token --email hr@contoh-sejahtera.test --role hr_admin
-uv run python -m scripts.dev_token --email tim@levelin.test --role reviewer
+uv run python -m scripts.dev_token --email rina@sinar-distribusi.test --name "Rina Lestari"    # pekerja
+uv run python -m scripts.dev_token --email ratna@sinar-distribusi.test --name "Ratna Wijaya"   # atasan tim (7 anggota)
+uv run python -m scripts.dev_token --email hr@sinar-distribusi.test --name "Hana Pratiwi"      # HR
+uv run python -m scripts.dev_token --email tim@levelin.test --role reviewer                     # peninjau
 ```
 
-Kedua email `contoh-sejahtera.test` punya undangan di data demo, jadi otomatis masuk organisasi
-"PT Contoh Sejahtera" saat request pertama.
+## Data
 
-## Keputusan yang diambil
+`data/hearz/` berisi data asli tim dari prototipe:
 
-Bagian "Yang perlu diputuskan" di rancangan belum ada di dokumen, jadi ini pilihan default yang dipakai.
-Semuanya bisa diubah lewat konfigurasi atau satu konstanta.
+- **Jabatan dan tugas**: 10 jabatan admin/klerikal + 9 jabatan tujuan (arah *naik*/*pindah*), 87 tugas. Skor
+  tugas dari ILO-NASK Global AI Exposure Index 2025 (Gmyrek dkk., ILO Working Paper 140), lisensi CC BY 4.0.
+  Teks tugas diterjemahkan dan diringkas oleh Tim Hearz; adaptasi ini tidak disiapkan, ditinjau, atau disahkan
+  oleh ILO, dan tanggung jawabnya ada pada Tim Hearz.
+- **Skill** (10), **jenis tugas** (6, penghubung tugas ke skill dan misi), **misi** M1-M3 lengkap dengan kunci
+  jawaban, **kelas** (12, harga dicek 21 Oktober 2026 dan bisa berubah).
+- Perusahaan, atasan, lowongan, dan data tim fiktif.
 
-| Topik | Pilihan |
+Untuk data penuh, skrip `scripts/ingest_*.py` mengimpor KBJI 2026 (BPS), indeks ILO, ESCO, katalog kelas, dan
+bank misi. Format kolom ada di docstring tiap skrip; jalankan `scripts.embed_reference` sesudahnya.
+
+## Peran
+
+| Peran | Akses |
 |---|---|
-| Login | Aplikasi login ke Supabase Auth; FastAPI hanya memverifikasi JWT (HS256 lewat `SUPABASE_JWT_SECRET`, atau RS256/ES256 lewat JWKS dari `SUPABASE_URL`). Pengguna dibuat otomatis saat request pertama. |
-| Peran | Dibaca dari `app_metadata.role` di JWT (hanya bisa diisi service role Supabase), default `worker`. Undangan HR dengan `role: hr_admin` juga memberi peran itu. |
-| Masuk organisasi | Lewat undangan HR: saat pengguna dengan email yang diundang login, ia otomatis bergabung ke organisasi dan departemennya. |
-| Model LLM | Default Gemini: `gemini-3.8-flash` untuk ekstraksi tugas, atasan AI, dan rubrik; `gemini-3.5-flash-lite` untuk penjelasan peta dan narasi rencana ("LLM ringan"). Alternatif gratis: `LLM_PROVIDER=groq` dengan `openai/gpt-oss-120b` dan `llama-3.1-8b-instant`; Qwen dipakai lewat `GROQ_MODEL_MAIN=qwen/qwen3.8-27b`. Free tier hanya untuk demo: kuotanya dipakai bersama, dan data sebaiknya bukan data pengguna asli. Untuk produksi set `LLM_PROVIDER=anthropic` (`claude-opus-5-5` dan `claude-haiku-5-5`) atau pakai paket berbayar. |
-| Embedding | Voyage `voyage-3.5`, 1024 dimensi. Cadangan: embedding hashing n-gram lokal. |
-| Pembayaran | Midtrans Snap; webhook diverifikasi dengan signature SHA-512. |
-| Persetujuan data | `POST /v1/audits` menolak (403 `consent_required`) bila profil belum menyetujui pemrosesan data. |
-| Validasi | Error validasi memakai 400 `validation_error` (bukan 422) sesuai daftar status di rancangan. |
+| `worker` | Aplikasi pekerja: audit, rencana, kelas, misi, Paspor, lowongan |
+| `manager` | Atasan tim: undang anggota tim sendiri (`/v1/team/*`), lihat agregat tim (k-anonim) dan anggota yang berbagi Paspor |
+| `hr_admin` | HR: agregat organisasi, karyawan & peran, undangan, misi kustom, lowongan internal, laporan |
+| `reviewer` | Tim Levelin: antrean penilaian dan bank misi |
 
-## Aturan yang dijaga backend
+Peran dibaca dari `app_metadata.role` di JWT bila ada, atau diberikan lewat undangan / `PATCH /v1/org/members/{id}`.
+Undangan organisasi dan undangan tim diterima otomatis saat pengguna membuka `GET /v1/me`. Pekerja bisa keluar
+dari tim lewat `DELETE /v1/me/teams/{manager_id}`.
 
-**Skor di server.** Rumus ada di [app/services/scoring.py](app/services/scoring.py):
+## Aturan (sama dengan prototipe)
 
-- Skor tugas = skor ILO dari template tugas yang paling mirip (kosinus embedding). LLM hanya memecah cerita jadi daftar tugas; angkanya tidak pernah dari LLM.
-- Kelompok: `>= 0,70` high, `>= 0,40` medium, sisanya low.
-- Jam dihemat per minggu = Σ jam × porsi hemat kelompok (high 50%, medium 25%, low 0%). Ini asumsi; ubah `SAVING_RATE`.
-- Skor Kesiapan (0-100) = 100 × (0,5 × adopsi AI di tugas terpapar + 0,3 × (1 − indeks paparan) + 0,2 × min(1, skill terbukti / 5)).
+Rumus ada di [app/services/scoring.py](app/services/scoring.py):
+
+- Kelompok tugas: skor ILO `>= 0,70` **auto** (Diotomasi), `>= 0,40` **assist** (Dibantu AI), sisanya **human**
+  (Tetap Manusia). Tugas tanpa padanan ILO = **none**, kecuali pengguna memilih kelompoknya sendiri.
+- Jam dihemat = jam auto × 0,6 + jam assist × 0,3 (faktor asumsi).
+- Skor Kesiapan = porsi jam terpapar (auto + assist) yang sudah siap: penuh bila misi untuk jenis tugas itu sudah
+  lulus, setengah bila tugas itu sudah dikerjakan dengan bantuan AI. Dihitung ulang setiap misi lulus/batal dan
+  disimpan per bulan untuk grafik tren.
+- Rencana: arah **perkuat** (skill AI + skill dua jenis tugas paling terpapar), **naik**, atau **pindah** (skill
+  jabatan tujuan + AI). Misi direkomendasikan menurut jenis tugas paling terpapar; kelas diurutkan menurut
+  jumlah celah skill yang ditutup lalu harga (label Mitra tidak memengaruhi urutan).
+- Misi lulus = semua cek objektif benar **dan** rata-rata rubrik ≥ 3. Tanpa LLM: semua cek benar dan jawaban
+  tertulis minimal 25 kata; hasil seperti ini selalu masuk antrean peninjau.
+- Lowongan: tiap skill yang diminta bernilai 1 bila terbukti lewat misi, 0,5 bila skill dasar (skill bawaan
+  jabatan + skill jenis tugas di Peta Tugas). Lowongan internal tampil lebih dulu; sumber tak terverifikasi
+  diberi peringatan.
+
+## Privasi dan keamanan
 
 **Kunci jawaban tidak keluar server.** `GET /v1/missions/{id}` tidak memuat `answer_key`; cek objektif jalan di
-[app/services/grading.py](app/services/grading.py) saat submit. Atasan AI tidak menerima kunci jawaban, dan
-setiap kalimat balasannya dicek: kalimat yang memuat nilai jawaban (angka/teks persis) diganti sebelum dikirim.
-Skor Kesiapan di audit terbaru dihitung ulang setiap skill terbukti berubah.
+[app/services/grading.py](app/services/grading.py). Atasan AI tidak menerima kunci jawaban, dan kalimat balasan
+yang memuat nilai jawaban (`20.980.000`, `20,98 juta`, `8 persen`) diganti sebelum dikirim. Jawaban pilihan
+(mis. nama cabang) tidak bisa disaring karena semua opsinya terlihat, jadi hanya dicegah oleh prompt.
 
-**HR hanya agregat.** Dashboard dan laporan menyembunyikan angka kelompok yang kurang dari `K_ANONYMITY_MIN`
-(default 5) orang. Departemen kecil digabung jadi "Lainnya"; bila "Lainnya" masih di bawah ambang, departemen
-terkecil ikut digabung supaya angkanya tidak bisa dihitung dari selisih total. Kandidat internal hanya pekerja yang menyalakan
-"Bagikan ke HR", dan isinya skill terbukti, bukan audit.
+**HR dan atasan hanya melihat agregat.** Angka organisasi, tim, departemen, dan bulan disembunyikan bila orang
+yang sudah audit kurang dari `K_ANONYMITY_MIN` (default 5). Bila sisa yang disembunyikan masih di bawah ambang,
+departemen terkecil ikut disembunyikan supaya angkanya tidak bisa dihitung dari selisih total
+(`suppressed_departments`). Kandidat hanya pekerja yang menyalakan berbagi Paspor, dan isinya skill terbukti,
+bukan audit.
 
-**Endpoint AI punya cadangan.** Keluaran JSON LLM memakai structured output lalu divalidasi Pydantic; gagal
-validasi, ditolak, atau error API berarti cadangan berbasis aturan dipakai. Penilaian cadangan selalu masuk
-antrean review manusia; penilaian LLM disampel `REVIEW_SAMPLE_RATE`. Rate limit per pengguna dicatat di tabel
-`ai_usage` (konsisten walau server lebih dari satu instance) dan dibalas `429` dengan header `Retry-After`.
-
-**Guardrail teks.** Prompt melarang topik PHK dan atasan AI dilarang mengerjakan tugas. Keluaran juga difilter
-per kalimat ([app/services/guardrails.py](app/services/guardrails.py)), termasuk saat streaming dan pada umpan
-balik rubrik. Filter jawaban mengenali angka (`162.000.000`, `162 juta`, `8 persen`) dan teks persis. Jawaban
-pilihan seperti "Timur" tidak bisa difilter karena semua opsinya memang terlihat, jadi hanya dicegah oleh prompt.
+**Endpoint AI punya cadangan.** Keluaran JSON LLM memakai structured output lalu divalidasi Pydantic; gagal,
+ditolak, atau error API (termasuk kuota habis) berarti cadangan berbasis aturan dipakai. Rate limit per
+pengguna dibalas `429` dengan `Retry-After`. Prompt melarang topik PHK; keluaran juga difilter per kalimat,
+termasuk saat streaming dan pada umpan balik rubrik.
 
 ## Streaming (SSE)
 
-`POST /v1/audits/{id}/explain`, `POST /v1/plans/{id}/narrative`, dan `POST /v1/attempts/{id}/messages`
-membalas `text/event-stream`:
+`POST /v1/audits/{id}/explain`, `POST /v1/plans/{id}/narrative`, dan `POST /v1/attempts/{id}/messages`:
 
 ```
-event: meta    data: {"engine": "llm"}          sebelum teks pertama
-event: delta   data: {"text": "Skor Kesiapan..."}  potongan teks, gabungkan berurutan
-event: reset   data: {"reason": "llm_error"}     buang teks yang sudah tampil; cadangan menyusul
-event: done    data: {"engine": "llm", "message_id": "..."}
+event: meta    data: {"engine": "llm"}                     sebelum teks pertama
+event: delta   data: {"text": "..."}                       potongan teks, gabungkan berurutan
+event: reset   data: {"reason": "llm_error"}               buang teks yang sudah tampil; cadangan menyusul
+event: done    data: {"engine": "llm", "message_id": "...", "flagged": false}
 ```
 
-Rate limit dan kepemilikan dicek sebelum stream dibuka, jadi error tetap berupa JSON biasa (401/404/429).
-Karena memakai POST, gunakan klien SSE yang mendukung POST (di Flutter: `http` dengan stream response,
-di web: `fetch` + `ReadableStream`).
+Rate limit dan kepemilikan dicek sebelum stream dibuka. Karena memakai POST, gunakan klien yang mendukung POST
+(Flutter: `http` dengan stream response; web: `fetch` + `ReadableStream`).
 
 ## Paginasi dan cache
 
 Endpoint daftar menerima `?page=&limit=` (maks 100) dan membalas `{"data": [...], "meta": {page, limit, total,
 total_pages, has_next}}`. Data referensi (`/v1/occupations*`, `/v1/skills`) mengirim `Cache-Control: public, max-age=3600`.
-
-## Data referensi asli
-
-Data di `data/demo/` hanya untuk demo; skor ILO di dalamnya ilustratif, bukan angka resmi. Impor data asli:
-
-```bash
-uv run python -m scripts.ingest_kbji data/kbji.csv                 # kbji_code,title,isco_code,aliases
-uv run python -m scripts.ingest_ilo data/ilo_tasks.csv --isco-col isco08 --task-col task --score-col score \
-    --translation data/ilo_tasks_id.csv --occupations data/ilo_occupations.csv
-uv run python -m scripts.ingest_esco --skills skills_en.csv --occupations occupations_en.csv \
-    --relations occupationSkillRelations_en.csv --labels-id skills_id.csv
-uv run python -m scripts.ingest_courses data/courses.csv
-uv run python -m scripts.ingest_missions data/missions.json
-uv run python -m scripts.embed_reference
-```
-
-Format kolom tiap berkas ada di docstring skripnya.
 
 ## Tugas terjadwal
 
@@ -132,27 +134,27 @@ dan pengingat misi untuk rencana yang mandek 7 hari. Notifikasi disimpan in-app 
 ## Tes
 
 ```bash
-uv run pytest                                            # SQLite in-memory
-TEST_DATABASE_URL=postgresql+asyncpg://.../levelin_test uv run pytest   # Postgres + pgvector
+uv run pytest                                                         # SQLite in-memory
+TEST_DATABASE_URL=postgresql+asyncpg://.../levelin_test uv run pytest # Postgres + pgvector
 ```
 
-Tes mencakup alur pekerja L1-L10, jalur LLM dengan LLM palsu (validasi skema, filter PHK di stream,
-reset saat stream putus, bocoran jawaban di chat), bentuk request ke SDK Google, Groq, dan Anthropic, dashboard HR
-k-anonim, peninjau, dan webhook pembayaran.
+Tes mencakup alur Rina dari prototipe (L1-L10), rumus skor dan cek misi M1-M3, jalur LLM dengan LLM palsu
+(validasi skema, filter di stream dan rubrik, reset saat stream putus), bentuk request ke SDK Google, Groq, dan
+Anthropic, dashboard HR dan tim k-anonim, peran atasan, peninjau, dan webhook pembayaran.
 
 ## Struktur
 
 ```
 app/
-  api/v1/        router per bagian rancangan (me, reference, audits, plans, courses, missions,
-                 attempts, passport, jobs, org, notifications, billing, admin)
-  services/      logika: skor, audit, LLM, embedding, guardrail, penilaian, rencana, HR, pembayaran
-  models/        tabel SQLAlchemy (30 tabel)
+  api/v1/        router: me, reference, audits, plans, courses, missions, attempts, passport, jobs,
+                 org (HR), team (atasan), notifications, billing, admin
+  services/      logika: skor, audit, LLM, embedding, guardrail, penilaian, rencana, HR/tim, pembayaran
+  models/        tabel SQLAlchemy
   schemas/       kontrak request/response
   core/          konfigurasi, auth JWT, format error, paginasi, rate limit
 alembic/         migrasi database
-scripts/         seed demo, impor data, embedding, pengingat, token dev
-data/demo/       data demo (jabatan, tugas, skill, kelas, misi, lowongan)
+scripts/         seed, impor data, embedding, pengingat, token dev
+data/hearz/      data tim dari prototipe (jabatan, tugas ILO-NASK, skill, misi, kelas, lowongan contoh)
 ```
 
 ## Deploy

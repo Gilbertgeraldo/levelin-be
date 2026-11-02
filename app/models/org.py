@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base, Timestamps, UUIDPk
+from app.db.base import Base, Timestamps, UUIDPk, utcnow
 from app.db.types import UTCDateTime
 
 
@@ -21,8 +21,26 @@ class Invitation(UUIDPk, Timestamps, Base):
     token: Mapped[str] = mapped_column(String(64), unique=True)
     status: Mapped[str] = mapped_column(String(16), default="pending")  # pending | accepted | expired | revoked
     invited_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    # Diisi bila yang mengundang atasan tim: penerima masuk ke tim atasan ini
+    manager_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     accepted_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+
+
+class TeamMembership(Base):
+    """Anggota tim seorang atasan (peran manager)."""
+
+    __tablename__ = "team_memberships"
+
+    manager_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    member_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
 
 class CustomMissionRequest(UUIDPk, Timestamps, Base):

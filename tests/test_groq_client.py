@@ -12,7 +12,7 @@ from app.services.prompts import EXTRACTION_SCHEMA
 
 pytestmark = pytest.mark.anyio
 
-PAYLOAD = {"tasks": [{"description": "Merekap data", "hours_per_week": 5, "uses_ai": False}]}
+PAYLOAD = {"tasks": [{"nama": "Merekap data", "frekuensi": "mingguan", "jam_per_minggu": 5, "alat": [], "ilo_id": "4311-1", "keyakinan": "tinggi", "alasan": "cocok"}]}
 
 
 def _reply(text: str, finish: str = "stop") -> dict:
@@ -68,7 +68,7 @@ async def test_generate_json_request_shape():
     service, seen = _service(lambda r: httpx.Response(200, json=_reply(json.dumps(PAYLOAD))))
     info = LLMCallInfo()
     result = await _extract(service, info)
-    assert result.tasks[0].description == "Merekap data"
+    assert result.tasks[0].nama == "Merekap data"
     assert (info.model, info.input_tokens, info.output_tokens) == ("openai/gpt-oss-120b", 120, 30)
 
     body = json.loads(seen[0].content)

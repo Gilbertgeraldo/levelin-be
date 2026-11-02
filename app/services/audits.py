@@ -1,92 +1,133 @@
-import json
+"""Audit tugas: cerita kerja -> daftar tugas -> padanan tugas ILO -> Peta Tugas.
+
+Alur sama dengan prototipe: tugas yang dicentang dari template + tugas dari cerita. LLM hanya memecah
+cerita dan memilih id tugas ILO dari daftar; skor selalu diambil dari indeks ILO oleh server. Bila LLM
+gagal, cerita dipecah dengan aturan dan dicocokkan lewat kemiripan teks.
+"""
+
 import re
 import uuid
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ApiError, not_found
-from app.models import Audit, AuditTask, Occupation, OccupationTask, User
+from app.db.base import utcnow
+from app.models import Attempt, Audit, AuditTask, Mission, Occupation, OccupationTask, ReadinessSnapshot, User
 from app.services import prompts, scoring
-from app.services.embeddings import HASHING_MODEL, EmbeddingService, cosine
+from app.services.embeddings import EmbeddingService, cosine
 from app.services.llm import LLMCallInfo, LLMError, LLMService
-from app.services.passport import proven_skill_ids
 from app.services.textutil import fmt_num
 
-MAX_TASKS = 12
+MAX_TASKS = 8
+Confidence = Literal["tinggi", "sedang", "rendah"]
 
 
 class ExtractedTask(BaseModel):
-    description: str = Field(min_length=2)
-    hours_per_week: float | None = None
-    uses_ai: bool = False
+    nama: str = Field(min_length=1)
+    frekuensi: str = ""
+    jam_per_minggu: float = scoring.DEFAULT_TASK_HOURS
+    alat: list[str] = Field(default_factory=list)
+    ilo_id: str | None = None
+    keyakinan: Confidence = "rendah"
+    alasan: str = ""
 
-    @field_validator("description")
+    @field_validator("nama")
     @classmethod
-    def _trim(cls, v: str) -> str:
-        return v.strip()[:300]
+    def _trim_name(cls, v: str) -> str:
+        return v.strip()[:90] or "Tugas tanpa nama"
 
-    @field_validator("hours_per_week")
+    @field_validator("jam_per_minggu")
     @classmethod
-    def _clamp(cls, v: float | None) -> float | None:
-        if v is None:
-            return None
-        return max(0.5, min(60.0, float(v)))
+    def _clamp_hours(cls, v: float) -> float:
+        return max(0.5, min(40.0, round(float(v) * 2) / 2))
 
 
 class Extraction(BaseModel):
     tasks: list[ExtractedTask]
 
 
+# ---------- Daftar tugas ILO ----------
+
+
+async def candidate_tasks(db: AsyncSession) -> list[OccupationTask]:
+    """Tugas ILO yang boleh dicocokkan dengan cerita (semua jabatan, bukan ringkasan jabatan tujuan)."""
+    rows = await db.scalars(
+        select(OccupationTask)
+        .where(OccupationTask.is_candidate.is_(True), OccupationTask.code.is_not(None))
+        .order_by(OccupationTask.id)
+    )
+    return list(rows.all())
+
+
+def candidate_list(tasks: list[OccupationTask], titles: dict[str, str]) -> str:
+    return "\n".join(f"{t.code}: {t.description} ({titles.get(t.isco_code, t.isco_code)})" for t in tasks)
+
+
 # ---------- Ekstraksi cadangan berbasis aturan ----------
 
-_SPLIT = re.compile(
-    r"[.\n;]+|,\s*(?:lalu|kemudian|terus|dan juga|serta)\s+|\s+(?:lalu|kemudian|setelah itu|selain itu)\s+",
-    re.IGNORECASE,
-)
+_SPLIT = re.compile(r"[.!?\n]+")
 _HOURS = re.compile(r"(\d+(?:[.,]\d+)?)\s*(?:jam|j)\b", re.IGNORECASE)
-_AI_WORDS = re.compile(r"\b(ai|chatgpt|gpt|copilot|gemini|claude|bard|meta ai)\b", re.IGNORECASE)
 _DURATION = re.compile(
-    r"\s*(?:sekitar|kira-kira|kurang lebih|selama)?\s*\d+(?:[.,]\d+)?\s*(?:jam|j)\b"
-    r"(?:\s*(?:per|/|tiap|setiap)?\s*(?:hari|sehari|minggu|seminggu)\b)?",
+    r"\s*,?\s*(?:sekitar|kira-kira|kurang lebih|selama)?\s*\d+(?:[.,]\d+)?\s*(?:jam|j)\b"
+    r"(?:\s*(?:per|/|tiap|setiap)?\s*(?:hari|sehari|minggu|seminggu|bulan|sebulan)\b)?",
     re.IGNORECASE,
 )
 _LEADING = re.compile(
-    r"^(saya|aku|sehari-hari|biasanya|setiap hari|tiap hari|juga|dan|lalu|kemudian)\s+", re.IGNORECASE
+    r"^(saya|aku|sehari-hari|biasanya|setiap hari|tiap hari|juga|dan|lalu|kemudian|sering juga)\s+",
+    re.IGNORECASE,
 )
+
+
+def parse_hours(text: str) -> tuple[str, float]:
+    """Frekuensi dan jam per minggu dari satu kalimat; harian x5, bulanan /4."""
+    freq = ""
+    if re.search(r"\b(setiap hari|tiap hari|sehari|harian|per hari)\b", text, re.IGNORECASE):
+        freq = "harian"
+    elif re.search(r"\b(bulan|bulanan|sebulan)\b", text, re.IGNORECASE):
+        freq = "bulanan"
+    elif re.search(r"\b(minggu|mingguan|seminggu|senin|selasa|rabu|kamis|jumat)\b", text, re.IGNORECASE):
+        freq = "mingguan"
+    m = _HOURS.search(text)
+    if not m:
+        return freq, scoring.DEFAULT_TASK_HOURS
+    value = float(m.group(1).replace(",", "."))
+    if freq == "harian":
+        value *= 5
+    elif freq == "bulanan":
+        value /= 4
+    return freq, value
 
 
 def rule_extract(story: str) -> list[ExtractedTask]:
     tasks: list[ExtractedTask] = []
     for raw in _SPLIT.split(story):
-        part = (raw or "").strip(" ,-")
+        part = raw.strip(" ,-")
         if len(part.split()) < 3:
             continue
-        hours = None
-        if m := _HOURS.search(part):
-            value = float(m.group(1).replace(",", "."))
-            per_day = re.search(r"\b(hari|harian|sehari)\b", part, re.IGNORECASE)
-            hours = value * 5 if per_day else value
-        desc = _DURATION.sub("", part).strip(" ,-")
-        while (stripped := _LEADING.sub("", desc)) != desc:
-            desc = stripped
-        desc = desc[:1].upper() + desc[1:]
+        freq, hours = parse_hours(part)
+        name = _DURATION.sub("", part).strip(" ,-")
+        while (stripped := _LEADING.sub("", name)) != name:
+            name = stripped
         tasks.append(
-            ExtractedTask(description=desc[:160], hours_per_week=hours, uses_ai=bool(_AI_WORDS.search(part)))
+            ExtractedTask(
+                nama=(name[:1].upper() + name[1:])[:90],
+                frekuensi=freq,
+                jam_per_minggu=hours,
+                alat=["Excel"] if re.search(r"excel|spreadsheet", part, re.IGNORECASE) else [],
+            )
         )
         if len(tasks) >= MAX_TASKS:
             break
     return tasks
 
 
-# ---------- Pencocokan ke template ILO ----------
-
-
 async def match_to_templates(
     embeddings: EmbeddingService, descriptions: list[str], templates: list[OccupationTask]
 ) -> tuple[list[tuple[OccupationTask | None, float | None]], str]:
-    """Cocokkan tiap deskripsi ke template tugas terdekat (kemiripan kosinus)."""
+    """Cocokkan tiap deskripsi ke tugas ILO terdekat (kemiripan kosinus)."""
     if not descriptions:
         return [], embeddings.primary_model
     if not templates:
@@ -114,92 +155,144 @@ async def match_to_templates(
     return results, query.model
 
 
-# ---------- Pembuatan & perhitungan ulang audit ----------
+def confidence_for(similarity: float | None, threshold: float) -> Confidence:
+    if similarity is None or similarity < threshold + 0.1:
+        return "rendah"
+    return "tinggi" if similarity >= threshold + 0.2 else "sedang"
 
 
-def fallback_score(occupation: Occupation, templates: list[OccupationTask]) -> float:
-    if occupation.avg_exposure is not None:
-        return occupation.avg_exposure
-    if templates:
-        return sum(t.ilo_score for t in templates) / len(templates)
-    return scoring.MEDIUM_THRESHOLD
+async def fallback_extract(
+    embeddings: EmbeddingService, story: str, candidates: list[OccupationTask]
+) -> list[ExtractedTask]:
+    tasks = rule_extract(story)
+    matches, model = await match_to_templates(embeddings, [t.nama for t in tasks], candidates)
+    threshold = embeddings.min_similarity(model)
+    for task, (template, sim) in zip(tasks, matches, strict=True):
+        task.ilo_id = template.code if template else None
+        task.keyakinan = confidence_for(sim, threshold) if template else "rendah"
+        task.alasan = "kata kunci cocok dengan tugas ILO" if template else "tidak ada tugas ILO yang cocok"
+    return tasks
+
+
+# ---------- Skor & ringkasan ----------
+
+
+async def passed_mission_kinds(db: AsyncSession, user_id: uuid.UUID) -> set[str]:
+    rows = await db.scalars(
+        select(Mission.kind)
+        .join(Attempt, Attempt.mission_id == Mission.id)
+        .where(Attempt.user_id == user_id, Attempt.passed.is_(True), Mission.kind.is_not(None))
+        .distinct()
+    )
+    return set(rows.all())
+
+
+def scored_tasks(audit: Audit) -> list[scoring.ScoredTask]:
+    return [
+        scoring.ScoredTask(
+            hours=t.hours_per_week,
+            group=t.group,
+            uses_ai=t.uses_ai,
+            kind=t.template.kind if t.template else None,
+        )
+        for t in audit.tasks
+    ]
+
+
+async def save_snapshot(db: AsyncSession, user_id: uuid.UUID, score: int) -> None:
+    month = utcnow().strftime("%Y-%m")
+    snapshot = await db.get(ReadinessSnapshot, (user_id, month))
+    if snapshot is None:
+        db.add(ReadinessSnapshot(user_id=user_id, month=month, score=score))
+    else:
+        snapshot.score = score
 
 
 async def recompute(db: AsyncSession, audit: Audit) -> Audit:
-    proven = len(await proven_skill_ids(db, audit.user_id))
-    scored = [
-        scoring.ScoredTask(hours=t.hours_per_week, score=t.ilo_score, uses_ai=t.uses_ai)
-        for t in audit.tasks
-    ]
     for task in audit.tasks:
-        task.group = scoring.group_for(task.ilo_score)
-    summary = scoring.summarize(scored, proven)
+        task.group = scoring.effective_group(task.ilo_score, task.manual_group)
+    summary = scoring.summarize(scored_tasks(audit), await passed_mission_kinds(db, audit.user_id))
+    matched = [t for t in audit.tasks if t.ilo_score is not None]
+    matched_hours = sum(t.hours_per_week for t in matched)
     audit.summary = summary
-    audit.total_hours = summary["total_hours"]
-    audit.exposure_index = summary["exposure_index"]
-    audit.hours_saved_week = summary["hours_saved_week"]
+    audit.total_hours = round(sum(t.hours_per_week for t in audit.tasks), 2)
+    audit.exposure_index = (
+        round(sum(t.hours_per_week * t.ilo_score for t in matched) / matched_hours, 3) if matched_hours else 0.0
+    )
+    audit.hours_saved_week = summary["hours_saved"]
     audit.readiness_score = summary["readiness_score"]
+    await save_snapshot(db, audit.user_id, audit.readiness_score)
     return audit
+
+
+async def refresh_readiness(db: AsyncSession, user_id: uuid.UUID) -> None:
+    """Hitung ulang audit terbaru setelah misi lulus/batal. Perubahan Attempt harus sudah di-flush."""
+    audit = await latest_audit(db, user_id)
+    if audit is not None:
+        await recompute(db, audit)
+
+
+# ---------- Pembuatan audit ----------
+
+
+def _new_task(
+    position: int,
+    name: str,
+    hours: float,
+    template: OccupationTask | None,
+    source: str,
+    confidence: str,
+) -> AuditTask:
+    return AuditTask(
+        position=position,
+        description=name,
+        hours_per_week=hours,
+        uses_ai=False,
+        template_task_id=template.id if template else None,
+        template=template,
+        ilo_score=template.ilo_score if template else None,
+        source=source,
+        confidence=confidence,
+    )
 
 
 async def create_audit(
     db: AsyncSession,
     user: User,
     *,
-    occupation_code: str,
+    occupation: Occupation,
     story: str | None,
-    selected: list[dict],
+    template_tasks: list[dict],
     llm: LLMService,
     embeddings: EmbeddingService,
     info: LLMCallInfo,
 ) -> Audit:
-    occupation = await db.get(Occupation, occupation_code)
-    if occupation is None:
-        raise not_found("Jabatan")
-    templates = list(
-        (
-            await db.scalars(
-                select(OccupationTask)
-                .where(OccupationTask.isco_code == occupation.isco_code)
-                .order_by(OccupationTask.id)
-            )
-        ).all()
-    )
-    by_id = {t.id: t for t in templates}
-    # Lepas koneksi DB selama panggilan LLM yang bisa makan waktu puluhan detik
-    await db.commit()
+    candidates = await candidate_tasks(db)
+    by_code = {t.code: t for t in candidates}
+    titles = dict((await db.execute(select(Occupation.code, Occupation.title))).all())
 
-    # item: description, hours, uses_ai, source, template, similarity
-    items: list[dict] = []
-    for sel in selected:
-        template = None
-        if sel.get("template_task_id") is not None:
-            template = by_id.get(sel["template_task_id"])
-            if template is None:
-                raise ApiError(400, "invalid_template_task", "Template tugas tidak cocok dengan jabatan ini.")
-        description = (sel.get("description") or (template.description if template else "")).strip()
-        if not description:
-            raise ApiError(400, "missing_description", "Tugas manual wajib punya deskripsi.")
-        items.append(
-            {
-                "description": description,
-                "hours": sel.get("hours_per_week"),
-                "uses_ai": bool(sel.get("uses_ai")),
-                "source": "template" if template else "manual",
-                "template": template,
-                "similarity": 1.0 if template else None,
-            }
-        )
+    tasks: list[AuditTask] = []
+    for item in template_tasks:
+        template = by_code.get(item["ilo_task_id"])
+        if template is None:
+            raise ApiError(400, "invalid_template_task", f"Tugas ILO {item['ilo_task_id']} tidak dikenal.")
+        tasks.append(_new_task(len(tasks), template.description, item["hours_per_week"], template, "template", "template"))
 
-    extraction_engine = "none"
-    if story and story.strip():
+    engine = "llm"
+    story = (story or "").strip()
+    if story:
+        checked = [item["ilo_task_id"] for item in template_tasks]
+        # Lepas koneksi DB selama panggilan LLM yang bisa makan waktu puluhan detik
+        await db.commit()
         try:
             extraction = await llm.generate_json(
                 tier="main",
                 system=prompts.EXTRACTION_SYSTEM,
                 prompt=(
-                    f"Jabatan: {occupation.title} (ISCO {occupation.isco_code}).\n\n"
-                    f"<cerita>\n{story.strip()}\n</cerita>"
+                    f"Jabatan pengguna: {occupation.title} (ISCO-08 {occupation.isco_code}).\n\n"
+                    f"Daftar tugas standar (id: teks):\n{candidate_list(candidates, titles)}\n\n"
+                    f"Tugas yang sudah dicentang pengguna dari template: {', '.join(checked) or 'tidak ada'}\n\n"
+                    f"<cerita>\n{story[:3000]}\n</cerita>"
                 ),
                 schema=prompts.EXTRACTION_SCHEMA,
                 model_cls=Extraction,
@@ -208,88 +301,38 @@ async def create_audit(
                 info=info,
             )
             extracted = extraction.tasks[:MAX_TASKS]
-            extraction_engine = "llm"
+            for task in extracted:
+                if task.ilo_id not in by_code:
+                    task.ilo_id = None
         except LLMError:
-            extracted = rule_extract(story)
-            extraction_engine = "rules"
-        for task in extracted:
-            items.append(
-                {
-                    "description": task.description,
-                    "hours": task.hours_per_week,
-                    "uses_ai": task.uses_ai,
-                    "source": "story",
-                    "template": None,
-                    "similarity": None,
-                }
-            )
+            extracted = await fallback_extract(embeddings, story, candidates)
+            engine = "fallback"
 
-    if not items:
-        raise ApiError(
-            400, "no_tasks", "Ceritakan pekerjaanmu atau pilih minimal satu tugas dari daftar."
-        )
+        for found in extracted:
+            template = by_code.get(found.ilo_id) if found.ilo_id else None
+            duplicate = next((t for t in tasks if template and t.template_task_id == template.id), None)
+            if duplicate is not None:
+                duplicate.description = found.nama
+                duplicate.source = "template+story"
+                continue
+            tasks.append(_new_task(len(tasks), found.nama, found.jam_per_minggu, template, "story", found.keyakinan))
 
-    to_match = [i for i in items if i["template"] is None]
-    matches, match_model = await match_to_templates(
-        embeddings, [i["description"] for i in to_match], templates
-    )
-    for item, (template, sim) in zip(to_match, matches, strict=True):
-        item["template"], item["similarity"] = template, sim
+    if not tasks:
+        raise ApiError(400, "no_tasks", "Ceritakan pekerjaanmu atau pilih minimal satu tugas dari daftar.")
 
-    # Tugas cerita yang cocok dengan template yang sudah dipilih eksplisit tidak dihitung dua kali
-    explicit = {i["template"].id: i for i in items if i["source"] == "template"}
-    merged: list[dict] = []
-    for item in items:
-        tpl = item["template"]
-        if item["source"] == "story" and tpl is not None and tpl.id in explicit:
-            target = explicit[tpl.id]
-            if target["hours"] is None:
-                target["hours"] = item["hours"]
-            target["uses_ai"] = target["uses_ai"] or item["uses_ai"]
-            continue
-        merged.append(item)
-
-    hours = scoring.fill_missing_hours([i["hours"] for i in merged])
-    default_score = fallback_score(occupation, templates)
-
-    matching_engine = match_model if to_match else "none"
-    degraded = extraction_engine == "rules" or matching_engine == HASHING_MODEL
     audit = Audit(
         user_id=user.id,
         occupation_code=occupation.code,
         isco_code=occupation.isco_code,
-        story=story,
-        engine="fallback" if degraded else "llm",
-        engine_detail={
-            "extraction": extraction_engine,
-            "matching": matching_engine,
-            "llm_model": info.model,
-        },
+        story=story or None,
+        engine=engine,
+        engine_detail={"extraction": "none" if not story else engine, "llm_model": info.model},
+        tasks=tasks,
     )
-    audit.tasks = [
-        AuditTask(
-            position=pos,
-            description=item["description"],
-            hours_per_week=h,
-            uses_ai=item["uses_ai"],
-            template_task_id=item["template"].id if item["template"] else None,
-            match_similarity=item["similarity"],
-            ilo_score=item["template"].ilo_score if item["template"] else default_score,
-            source=item["source"],
-        )
-        for pos, (item, h) in enumerate(zip(merged, hours, strict=True))
-    ]
     db.add(audit)
     await recompute(db, audit)
     await db.flush()
     return audit
-
-
-async def refresh_readiness(db: AsyncSession, user_id: uuid.UUID) -> None:
-    """Hitung ulang audit terbaru setelah skill terbukti berubah. Perubahan Paspor harus sudah di-flush."""
-    audit = await latest_audit(db, user_id)
-    if audit is not None:
-        await recompute(db, audit)
 
 
 async def get_owned_audit(db: AsyncSession, user: User, audit_id: uuid.UUID) -> Audit:
@@ -305,61 +348,84 @@ async def latest_audit(db: AsyncSession, user_id: uuid.UUID) -> Audit | None:
     )
 
 
-def audit_numbers(audit: Audit, occupation: Occupation | None) -> dict:
-    """Ringkasan angka audit untuk LLM penjelas (tanpa teks cerita pengguna)."""
-    s = audit.summary or {}
+def audit_view(audit: Audit, occupation: Occupation | None) -> dict:
+    """Bentuk respons audit sesuai payload v0.1."""
     return {
-        "jabatan": occupation.title if occupation else audit.occupation_code,
-        "skor_kesiapan": s.get("readiness_score"),
-        "total_jam_per_minggu": s.get("total_hours"),
-        "indeks_paparan_ai": s.get("exposure_index"),
-        "jam_bisa_dihemat_per_minggu": s.get("hours_saved_week"),
-        "jam_sudah_dihemat_per_minggu": s.get("hours_saved_now"),
-        "porsi_adopsi_ai": s.get("ai_adoption"),
-        "kelompok": {
-            k: {"label": v["label"], "jumlah_tugas": v["task_count"], "jam": v["hours"]}
-            for k, v in (s.get("groups") or {}).items()
+        "id": audit.id,
+        "occupation": {
+            "code": audit.occupation_code,
+            "name": occupation.title if occupation else audit.occupation_code,
         },
-        "tugas": [
+        "story": audit.story,
+        "tasks": [
             {
-                "tugas": t.description,
-                "jam_per_minggu": t.hours_per_week,
-                "skor_ilo": round(t.ilo_score, 2),
-                "kelompok": scoring.GROUP_LABELS[t.group],
-                "sudah_pakai_ai": t.uses_ai,
+                "id": t.id,
+                "name": t.description,
+                "hours_per_week": t.hours_per_week,
+                "ilo_task_id": t.template.code if t.template else None,
+                "ilo_text": t.template.description if t.template else None,
+                "ilo_score": t.ilo_score,
+                "group": t.group,
+                "confidence": t.confidence,
+                "source": t.source,
+                "uses_ai": t.uses_ai,
             }
             for t in audit.tasks
         ],
+        "summary": audit.summary,
+        "engine": audit.engine,
+        "created_at": audit.created_at,
+        "updated_at": audit.updated_at,
     }
 
 
-def explain_fallback(audit: Audit) -> str:
+# ---------- Penjelasan peta ----------
+
+
+def first_name(user: User) -> str:
+    return (user.full_name or "").split()[0] if (user.full_name or "").strip() else "Kamu"
+
+
+def explain_facts(audit: Audit, occupation: Occupation | None, user: User, first_mission: str | None) -> str:
+    """Fakta untuk LLM penjelas, sama dengan prototipe. Tanpa teks cerita pengguna."""
     s = audit.summary or {}
-    groups = s.get("groups") or {}
-    tasks = sorted(audit.tasks, key=lambda t: t.ilo_score, reverse=True)
-    high = [t for t in tasks if t.group == "high"] or [t for t in tasks if t.group == "medium"]
-    low = [t for t in reversed(tasks) if t.group == "low"]
-    lines = [
-        f"Skor Kesiapan kamu {s.get('readiness_score', 0)} dari 100. Skor ini naik kalau kamu "
-        "makin sering memakai AI di tugas yang cocok dan menambah skill terbukti di Paspor."
-    ]
-    if high:
-        lines.append(
-            f"Tugas yang paling bisa dibantu AI adalah \"{high[0].description}\". "
-            f"Kalau tugas-tugas di kelompok ini dibantu AI, kamu berpotensi menghemat sekitar "
-            f"{fmt_num(s.get('hours_saved_week'))} jam per minggu."
-        )
-    if low:
-        lines.append(
-            f"Sekitar {fmt_num(groups.get('low', {}).get('hours'))} jam per minggu ada di tugas yang tetap "
-            f"mengandalkan keunggulan manusia, seperti \"{low[0].description}\". Itu modal pentingmu."
-        )
-    lines.append(
-        "Langkah berikutnya: pilih satu tugas yang bisa dibantu AI, coba kerjakan dengan AI minggu "
-        "ini, lalu tandai \"sudah pakai AI\" di peta supaya skormu diperbarui."
+    hb = s.get("hours_by_group") or {}
+    lines = "\n".join(
+        f"- {t.description}: {fmt_num(t.hours_per_week)} jam/minggu, kelompok {scoring.GROUP_LABELS[t.group]}"
+        + (f", skor ILO {t.ilo_score}" if t.ilo_score is not None else "")
+        for t in audit.tasks
     )
-    return "\n\n".join(lines)
+    facts = [
+        f"Nama: {first_name(user)}",
+        f"Jabatan: {occupation.title if occupation else audit.occupation_code}",
+        f"Skor Kesiapan: {s.get('readiness_score', 0)}",
+        f"Jam/minggu bisa dihemat: {fmt_num(s.get('hours_saved'))} jam",
+        "Jam per kelompok: "
+        f"Diotomasi {fmt_num(hb.get('auto'))}, Dibantu AI {fmt_num(hb.get('assist'))}, "
+        f"Tetap Manusia {fmt_num(hb.get('human'))}",
+        f"Tugas:\n{lines}",
+    ]
+    if first_mission:
+        facts.append(f"Misi pertama yang disarankan: {first_mission}")
+    return "Fakta:\n" + "\n".join(facts)
 
 
-def numbers_prompt(data: dict) -> str:
-    return "Data audit:\n```json\n" + json.dumps(data, ensure_ascii=False, indent=1) + "\n```"
+def explain_fallback(audit: Audit, user: User, first_mission: str | None) -> str:
+    s = audit.summary or {}
+    hb = s.get("hours_by_group") or {}
+    total = sum(hb.get(g, 0) for g in scoring.GROUPS)
+    autos = sorted((t for t in audit.tasks if t.group == "auto"), key=lambda t: t.hours_per_week, reverse=True)
+    text = (
+        f"{first_name(user)}, dari {fmt_num(total)} jam kerjamu per minggu, {fmt_num(hb.get('auto'))} jam ada di "
+        f"tugas yang bisa dikerjakan AI hampir penuh dan {fmt_num(hb.get('assist'))} jam di tugas yang bisa "
+        "dipercepat AI. "
+    )
+    if autos:
+        text += f"Yang paling bergeser adalah “{autos[0].description}”. "
+    text += (
+        "Artinya pekerjaanmu berubah bentuk: kamu bisa menghemat sekitar "
+        f"{fmt_num(s.get('hours_saved'))} jam per minggu dan memakainya untuk tugas yang lebih bernilai."
+    )
+    if first_mission:
+        text += f" Mulai dari misi “{first_mission}” supaya Skor Kesiapanmu naik."
+    return text

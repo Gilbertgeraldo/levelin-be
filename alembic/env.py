@@ -50,7 +50,13 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    _configure(connection=connection, render_as_batch=connection.dialect.name == "sqlite")
+    sqlite = connection.dialect.name == "sqlite"
+    if sqlite:
+        # Batch mode SQLite membuat ulang tabel; cek foreign key harus mati supaya tabel berisi data aman
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        # PRAGMA memulai transaksi implisit; tutup dulu agar migrasi berjalan di transaksinya sendiri
+        connection.commit()
+    _configure(connection=connection, render_as_batch=sqlite)
     with context.begin_transaction():
         context.run_migrations()
 

@@ -69,7 +69,7 @@ async def passport_skills(db: AsyncSession, user_id: uuid.UUID, *, include_score
         item = skills.setdefault(
             skill.id,
             {
-                "skill": {"id": skill.id, "label": skill.label, "category": skill.category},
+                "skill": {"id": skill.id, "code": skill.code, "label": skill.label, "category": skill.category},
                 "evidence_count": 0,
                 "best_score": 0.0,
                 "last_earned_at": entry.earned_at,
@@ -79,11 +79,16 @@ async def passport_skills(db: AsyncSession, user_id: uuid.UUID, *, include_score
         item["evidence_count"] += 1
         item["best_score"] = max(item["best_score"], entry.score)
         evidence = {
+            "id": entry.id,
             "mission_id": mission.id,
             "mission_title": mission.title,
             "attempt_id": entry.attempt_id,
             "earned_at": entry.earned_at,
             "rubric": [r.get("criterion") for r in (mission.rubric or [])],
+            "rubric_avg": entry.rubric_avg,
+            "checks_passed": entry.checks_passed,
+            "checks_total": entry.checks_total,
+            "excerpt": entry.excerpt,
         }
         if include_scores:
             evidence["score"] = entry.score

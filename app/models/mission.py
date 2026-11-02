@@ -34,8 +34,11 @@ class Mission(UUIDPk, Timestamps, Base):
     # [{id, field_id, type: exact|number|contains|regex|choice, expected, tolerance?, weight, hint?}]
     answer_key: Mapped[list] = mapped_column(JSONType, default=list)
     occupation_isco_codes: Mapped[list] = mapped_column(JSONType, default=list)
+    # Jenis pekerjaan yang dilatih misi ini (lihat task_kinds)
+    kind: Mapped[str | None] = mapped_column(String(16))
     difficulty: Mapped[int] = mapped_column(Integer, default=1)  # 1 mudah, 2 sedang, 3 sulit
     est_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    duration_label: Mapped[str | None] = mapped_column(String(40))  # mis. "30–40 menit"
     pass_score: Mapped[int] = mapped_column(Integer, default=70)
     objective_weight: Mapped[float] = mapped_column(Float, default=0.4)
     is_published: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -59,9 +62,14 @@ class Attempt(UUIDPk, Timestamps, Base):
     status: Mapped[str] = mapped_column(String(16), default="in_progress")  # in_progress | graded
     draft: Mapped[dict] = mapped_column(JSONType, default=dict)
     answers: Mapped[dict | None] = mapped_column(JSONType)
+    # Penjelasan pengguna tentang cara ia memakai AI saat mengerjakan misi
+    ai_usage: Mapped[str | None] = mapped_column(Text)
     submitted_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
     objective_score: Mapped[float | None] = mapped_column(Float)
     rubric_score: Mapped[float | None] = mapped_column(Float)
+    # Rata-rata rubrik skala 1-4; None bila rubrik tidak dinilai (mode cadangan)
+    rubric_avg: Mapped[float | None] = mapped_column(Float)
+    next_step: Mapped[str | None] = mapped_column(Text)
     score: Mapped[float | None] = mapped_column(Float)
     passed: Mapped[bool | None] = mapped_column(Boolean)
     result: Mapped[dict | None] = mapped_column(JSONType)

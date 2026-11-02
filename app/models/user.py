@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base, Timestamps, UUIDPk
 from app.db.types import UTCDateTime
 
-ROLES = ("worker", "hr_admin", "reviewer")
+ROLES = ("worker", "manager", "hr_admin", "reviewer")
 
 
 class Organization(UUIDPk, Timestamps, Base):
@@ -47,7 +47,8 @@ class Profile(Timestamps, Base):
     job_title: Mapped[str | None] = mapped_column(String(200))
     industry: Mapped[str | None] = mapped_column(String(120))
     years_experience: Mapped[int | None] = mapped_column(Integer)
-    goal: Mapped[str | None] = mapped_column(String(40))
+    experience_range: Mapped[str | None] = mapped_column(String(40))  # mis. "3–5 tahun"
+    goal: Mapped[str | None] = mapped_column(String(40))  # perkuat | naik | pindah
     consent_data_processing: Mapped[bool] = mapped_column(Boolean, default=False)
     consent_version: Mapped[str | None] = mapped_column(String(20))
     consented_at: Mapped[datetime | None] = mapped_column(UTCDateTime)

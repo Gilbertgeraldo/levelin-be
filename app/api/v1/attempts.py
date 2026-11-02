@@ -11,7 +11,7 @@ from app.core.errors import ApiError
 from app.core.ratelimit import begin_ai_call, finish_ai_call
 from app.db.base import utcnow
 from app.models import AIUsage, Attempt, AttemptMessage, Mission, Review
-from app.schemas.missions import AnswersIn, AppealIn, AppealOut, ChatIn, ChatMessageOut, DraftOut, ResultOut
+from app.schemas.missions import AnswersIn, AppealIn, AppealOut, ChatIn, ChatMessageOut, DraftOut, ResultOut, SubmitIn
 from app.services import grading, missions
 from app.services.guardrails import SentenceGuard, answer_leak_check, layoff_check
 from app.services.llm import LLMCallInfo
@@ -42,7 +42,7 @@ async def _chat_ctx(
     "/{attempt_id}/messages",
     response_class=EventSourceResponse,
     summary="Kirim pesan ke atasan AI; balasan di-stream (SSE)",
-    description="Event: meta {engine}, delta {text}, reset {reason}, done {engine, message_id}.",
+    description="Event: meta {engine}, delta {text}, reset {reason}, done {engine, message_id, flagged}.",
 )
 async def send_message(
     ctx: Annotated[tuple[Attempt, Mission, AttemptMessage, AIUsage], Depends(_chat_ctx)], db: DB, llm: LLM
@@ -65,7 +65,7 @@ async def send_message(
         db.add(reply)
         finish_ai_call(usage, engine, info)
         await db.commit()
-        return {"message_id": str(reply.id)}
+        return {"message_id": str(reply.id), "flagged": flagged}
 
     async for event in stream_with_fallback(
         llm_stream=llm_stream if llm.available and history else None,
@@ -107,16 +107,16 @@ async def save_draft(attempt_id: uuid.UUID, body: AnswersIn, db: DB, user: Curre
     response_model=ResultOut,
     summary="Kumpulkan jawaban: cek objektif (skrip) lalu rubrik (LLM JSON)",
 )
-async def submit(attempt_id: uuid.UUID, body: AnswersIn, db: DB, user: CurrentUser, llm: LLM):
+async def submit(attempt_id: uuid.UUID, body: SubmitIn, db: DB, user: CurrentUser, llm: LLM):
     attempt, mission = await _attempt_and_mission(db, user, attempt_id)
     missions.require_in_progress(attempt)
     grading.validate_answers(mission, body.answers)
     usage = await begin_ai_call(db, user.id, "grade")
     info = LLMCallInfo()
-    await missions.submit_attempt(db, attempt, mission, body.answers, llm, info)
+    await missions.submit_attempt(db, attempt, mission, body.answers, body.ai_usage, llm, info)
     finish_ai_call(usage, attempt.engine, info)
     await db.commit()
-    return missions.result_view(attempt, mission)
+    return await missions.result_view(db, attempt, mission)
 
 
 @router.get("/{attempt_id}/result", response_model=ResultOut, summary="Ambil ulang hasil (nota penilaian)")
@@ -124,7 +124,7 @@ async def get_result(attempt_id: uuid.UUID, db: DB, user: CurrentUser):
     attempt, mission = await _attempt_and_mission(db, user, attempt_id)
     if attempt.status != "graded":
         raise ApiError(409, "not_graded", "Percobaan ini belum dikumpulkan.")
-    return missions.result_view(attempt, mission)
+    return await missions.result_view(db, attempt, mission)
 
 
 @router.post(

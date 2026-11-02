@@ -10,17 +10,17 @@ from app.schemas.common import QuotaOut, SkillRef
 class AnswerField(BaseModel):
     id: str
     label: str
-    type: str = "text"
+    type: str = "text"  # text | long_text | number | choice
     options: list[str] | None = None
     required: bool = True
     placeholder: str | None = None
+    rows: int | None = None
 
 
 class RubricItemPublic(BaseModel):
     id: str
     criterion: str
     description: str | None = None
-    weight: float = 1
 
 
 class BossPersona(BaseModel):
@@ -33,7 +33,8 @@ class MissionListItem(BaseModel):
     slug: str
     title: str
     summary: str | None
-    difficulty: int
+    kind: str | None
+    duration_label: str | None
     est_minutes: int
     skills: list[SkillRef]
     status: str
@@ -47,10 +48,10 @@ class MissionDetail(MissionListItem):
 
     brief: str
     boss_persona: BossPersona
-    simulation_data: dict
+    simulation_data: dict = Field(description='{"table": {"columns", "rows"}} atau {"notes": "..."}')
     answer_fields: list[AnswerField]
     rubric: list[RubricItemPublic]
-    pass_score: int
+    checks: list[str] = Field(description="Hal yang dicek otomatis saat dikumpulkan (tanpa jawabannya)")
 
 
 class AttemptOut(BaseModel):
@@ -79,38 +80,26 @@ class AnswersIn(BaseModel):
     answers: dict[str, Any]
 
 
+class SubmitIn(AnswersIn):
+    ai_usage: str | None = Field(None, max_length=2000, description="Cara memakai AI saat mengerjakan misi")
+
+
 class DraftOut(BaseModel):
     attempt_id: uuid.UUID
     draft: dict
     updated_at: datetime
 
 
-class ObjectiveCheckOut(BaseModel):
-    id: str
-    field_id: str
+class CheckOut(BaseModel):
     label: str
-    passed: bool
-    feedback: str
+    ok: bool
+    hint: str | None
 
 
-class ObjectiveOut(BaseModel):
-    score: float | None
-    checks: list[ObjectiveCheckOut]
-
-
-class RubricCriterionOut(BaseModel):
-    id: str
+class RubricScoreOut(BaseModel):
     criterion: str
-    weight: float
-    level: int
-    max_level: int
-    feedback: str
-
-
-class RubricOut(BaseModel):
-    score: float
-    criteria: list[RubricCriterionOut]
-    overall_feedback: str
+    score: int
+    note: str
 
 
 class MissionRef(BaseModel):
@@ -119,14 +108,19 @@ class MissionRef(BaseModel):
 
 
 class ResultOut(BaseModel):
+    """Nota penilaian sesuai payload v0.1 POST /v1/attempts/{id}/submit."""
+
     attempt_id: uuid.UUID
     mission: MissionRef
     status: str
-    score: float | None
     passed: bool | None
-    pass_score: int
-    objective: ObjectiveOut | None
-    rubric: RubricOut | None
+    checks: list[CheckOut]
+    rubric: list[RubricScoreOut] | None
+    rubric_avg: float | None
+    feedback: str | None
+    next_step: str | None
+    passport_evidence_id: str | None
+    readiness_score: int | None
     skills_earned: list[SkillRef]
     engine: str | None
     review_status: str

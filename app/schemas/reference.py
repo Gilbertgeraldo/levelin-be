@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.common import SkillRef
 
@@ -10,6 +10,7 @@ class OccupationOut(BaseModel):
     title_en: str | None = None
     avg_exposure: float | None = None
     exposure_gradient: int | None = None
+    gradient_cat: str | None = None
     match: str | None = None
 
 
@@ -22,10 +23,11 @@ class OccupationDetail(OccupationOut):
 
 
 class OccupationTaskOut(BaseModel):
-    id: int
+    id: str = Field(description="Id tugas ILO untuk template_tasks, mis. '4311-1'")
     description: str
     description_en: str | None = None
     ilo_score: float
+    kind: str | None = None
     group: str
     group_label: str
 
@@ -44,7 +46,7 @@ class SkillOut(BaseModel):
 
 
 class NextRoleOut(BaseModel):
+    direction: str = Field(description="naik | pindah (data tim) atau mirip (kemiripan skill)")
     occupation: OccupationOut
-    similarity: float
-    shared_skill_count: int
+    similarity: float | None
     skills_to_learn: list[SkillRef]

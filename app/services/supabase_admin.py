@@ -25,7 +25,7 @@ def _headers(key: str) -> dict:
     return {"apikey": key, "Authorization": f"Bearer {key}"}
 
 
-async def invite_user_by_email(email: str, data: dict | None = None) -> bool:
+async def invite_user_by_email(email: str, data: dict | None = None, redirect_to: str | None = None) -> bool:
     cfg = _config()
     if cfg is None:
         return False
@@ -33,7 +33,10 @@ async def invite_user_by_email(email: str, data: dict | None = None) -> bool:
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
-                f"{base}/auth/v1/invite", headers=_headers(key), json={"email": email, "data": data or {}}
+                f"{base}/auth/v1/invite",
+                headers=_headers(key),
+                params={"redirect_to": redirect_to} if redirect_to else None,
+                json={"email": email, "data": data or {}},
             )
         # 422 = email sudah terdaftar; undangan tetap tercatat dan akan diterima saat login
         return resp.status_code < 300

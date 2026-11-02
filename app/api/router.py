@@ -6,6 +6,7 @@ from app.api.v1 import (
     audits,
     billing,
     courses,
+    dev,
     jobs,
     me,
     missions,
@@ -14,6 +15,7 @@ from app.api.v1 import (
     passport,
     plans,
     reference,
+    team,
 )
 
 api_v1 = APIRouter(prefix="/v1")
@@ -28,8 +30,10 @@ for module in (
     passport,
     jobs,
     org,
+    team,
     notifications,
     billing,
     admin,
+    dev,
 ):
     api_v1.include_router(module.router)

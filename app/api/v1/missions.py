@@ -2,7 +2,6 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Response
-from sqlalchemy import select
 
 from app.api.deps import DB, CurrentUser, Pagination
 from app.core.pagination import Page, paginate_list
@@ -21,9 +20,10 @@ def mission_item(mission: Mission, status: str, reason: str | None) -> dict:
         "slug": mission.slug,
         "title": mission.title,
         "summary": mission.summary,
-        "difficulty": mission.difficulty,
+        "kind": mission.kind,
+        "duration_label": mission.duration_label,
         "est_minutes": mission.est_minutes,
-        "skills": [{"id": s.id, "label": s.label} for s in mission.skills],
+        "skills": [{"id": s.id, "code": s.code, "label": s.label} for s in mission.skills],
         "status": status,
         "is_recommended": reason is not None,
         "recommend_reason": reason,
@@ -31,7 +31,11 @@ def mission_item(mission: Mission, status: str, reason: str | None) -> dict:
     }
 
 
-@router.get("", response_model=Page[MissionListItem], summary="Daftar misi dengan status dan rekomendasi")
+@router.get(
+    "",
+    response_model=Page[MissionListItem],
+    summary="Daftar misi berurut rekomendasi (jenis tugas paling terpapar dulu)",
+)
 async def list_missions(
     db: DB,
     user: CurrentUser,
@@ -39,50 +43,41 @@ async def list_missions(
     recommended: bool = False,
     status: MissionStatus | None = None,
 ):
-    all_missions = list((await db.scalars(select(Mission).where(*missions.visible_filter(user)))).all())
-    statuses = await missions.mission_statuses(db, user.id, [m.id for m in all_missions])
-    gap, isco = await missions.recommendation_context(db, user)
-
+    ordered, reasons = await missions.recommended_order(db, user)
+    statuses = await missions.mission_statuses(db, user.id, [m.id for m in ordered])
     rows = []
-    for m in all_missions:
+    for m in ordered:
         st = statuses.get(m.id, "not_started")
-        score, reason = missions.relevance(m, gap, isco)
         if status and st != status:
             continue
-        if recommended and (score <= 0 or st == "passed"):
+        if recommended and (m.id not in reasons or st == "passed"):
             continue
-        rows.append((m, st, score, reason))
-    if recommended:
-        rows.sort(key=lambda r: (-r[2], r[0].difficulty, r[0].title))
-    else:
-        rows.sort(key=lambda r: (r[0].org_id is None, r[0].difficulty, r[0].title))
-    items, meta = paginate_list([mission_item(m, st, reason) for m, st, _, reason in rows], page)
+        rows.append(mission_item(m, st, reasons.get(m.id)))
+    items, meta = paginate_list(rows, page)
     return {"data": items, "meta": meta}
 
 
-@router.get("/{mission_id}", response_model=MissionDetail, summary="Brief, data simulasi, kolom jawaban, rubrik (tanpa kunci jawaban)")
+@router.get(
+    "/{mission_id}",
+    response_model=MissionDetail,
+    summary="Brief, data simulasi, kolom jawaban, rubrik (tanpa kunci jawaban)",
+)
 async def get_mission(mission_id: uuid.UUID, db: DB, user: CurrentUser):
     mission = await missions.get_visible_mission(db, user, mission_id)
     status = (await missions.mission_statuses(db, user.id, [mission.id])).get(mission.id, "not_started")
-    gap, isco = await missions.recommendation_context(db, user)
-    _, reason = missions.relevance(mission, gap, isco)
+    _, reasons = await missions.recommended_order(db, user)
     persona = mission.boss_persona or {}
     return {
-        **mission_item(mission, status, reason),
+        **mission_item(mission, status, reasons.get(mission.id)),
         "brief": mission.brief,
         "boss_persona": {"name": persona.get("name"), "role": persona.get("role")},
         "simulation_data": mission.simulation_data or {},
         "answer_fields": mission.answer_fields or [],
         "rubric": [
-            {
-                "id": r["id"],
-                "criterion": r.get("criterion", r["id"]),
-                "description": r.get("description"),
-                "weight": r.get("weight", 1),
-            }
+            {"id": r["id"], "criterion": r.get("criterion", r["id"]), "description": r.get("description")}
             for r in mission.rubric or []
         ],
-        "pass_score": mission.pass_score,
+        "checks": [k.get("label") or k["field_id"] for k in mission.answer_key or []],
     }
 
 

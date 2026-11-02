@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str | None = None
     supabase_jwt_audience: str = "authenticated"
     supabase_service_role_key: str | None = None
+    # Tujuan tautan di email undangan: web dashboard (HR & atasan) dan deep link aplikasi (pekerja)
+    web_url: str = "http://localhost:3000"
+    app_auth_redirect_url: str | None = None
+    # Login akun demo tanpa kata sandi (POST /v1/dev/demo-login). Jangan nyalakan di produksi.
+    dev_login_enabled: bool = False
 
     # LLM. "main" untuk ekstraksi, atasan AI, rubrik; "light" untuk penjelasan & narasi.
     llm_provider: Literal["gemini", "groq", "anthropic"] = "gemini"

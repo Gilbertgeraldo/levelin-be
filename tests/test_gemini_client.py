@@ -45,11 +45,11 @@ async def _extract(service: GeminiService, info: LLMCallInfo | None = None) -> E
 
 
 async def test_generate_json_request_shape():
-    payload = {"tasks": [{"description": "Merekap data", "hours_per_week": None, "uses_ai": True}]}
+    payload = {"tasks": [{"nama": "Merekap data", "frekuensi": "mingguan", "jam_per_minggu": 5, "alat": [], "ilo_id": None, "keyakinan": "tinggi", "alasan": "cocok"}]}
     service, seen = _service(lambda r: httpx.Response(200, json=_reply(json.dumps(payload))))
     info = LLMCallInfo()
     result = await _extract(service, info)
-    assert result.tasks[0].description == "Merekap data" and result.tasks[0].hours_per_week is None
+    assert result.tasks[0].nama == "Merekap data" and result.tasks[0].ilo_id is None
     assert (info.model, info.input_tokens, info.output_tokens) == ("gemini-3.8-flash", 120, 38)
 
     request = seen[0]
@@ -65,12 +65,12 @@ async def test_generate_json_request_shape():
 
 
 async def test_rubric_schema_is_accepted_by_sdk():
-    grade = {"criteria": [{"id": "r1", "level": 3, "feedback": "Baik."}], "overall_feedback": "Bagus."}
+    grade = {"rubric": [{"id": "r1", "score": 3, "note": "Baik."}], "feedback": "Bagus.", "next_step": "Lanjut."}
     service, seen = _service(lambda r: httpx.Response(200, json=_reply(json.dumps(grade))))
     result = await service.generate_json(
         tier="main", system="s", prompt="p", schema=RUBRIC_SCHEMA, model_cls=RubricGrade
     )
-    assert result.criteria[0].level == 3
+    assert result.rubric[0].score == 3
     assert json.loads(seen[0].content)["generationConfig"]["responseJsonSchema"] == RUBRIC_SCHEMA
 
 

@@ -13,12 +13,13 @@ from app.services import reference, scoring
 router = APIRouter(tags=["Data referensi"])
 
 CACHE_SECONDS = 3600
+# Label kategori indeks ILO, sama dengan prototipe
 GRADIENT_LABELS = {
-    0: "Tidak terpapar",
-    1: "Gradien 1 (paparan rendah)",
-    2: "Gradien 2 (paparan sedang)",
-    3: "Gradien 3 (paparan tinggi)",
-    4: "Gradien 4 (paparan tertinggi)",
+    "Exposed: Gradient 4": "Gradien 4 (paparan tertinggi)",
+    "Exposed: Gradient 3": "Gradien 3",
+    "Exposed: Gradient 2": "Gradien 2",
+    "Exposed: Gradient 1": "Gradien 1",
+    "Minimal Exposure": "Paparan minimal",
 }
 
 
@@ -43,7 +44,7 @@ async def _occupation(db, code: str) -> Occupation:
 
 async def _tasks(db, isco_code: str) -> list[OccupationTask]:
     rows = await db.scalars(
-        select(OccupationTask).where(OccupationTask.isco_code == isco_code).order_by(OccupationTask.ilo_score.desc())
+        select(OccupationTask).where(OccupationTask.isco_code == isco_code).order_by(OccupationTask.id)
     )
     return list(rows.all())
 
@@ -52,7 +53,7 @@ async def _tasks(db, isco_code: str) -> list[OccupationTask]:
 async def get_occupation(code: str, response: Response, db: DB):
     occupation = await _occupation(db, code)
     tasks = await _tasks(db, occupation.isco_code)
-    groups = {"high": 0, "medium": 0, "low": 0}
+    groups = {"auto": 0, "assist": 0, "human": 0}
     for t in tasks:
         groups[scoring.group_for(t.ilo_score)] += 1
     cache_public(response, CACHE_SECONDS)
@@ -60,7 +61,7 @@ async def get_occupation(code: str, response: Response, db: DB):
         **reference.occupation_view(occupation),
         "description": occupation.description,
         "aliases": occupation.aliases or [],
-        "gradient_label": GRADIENT_LABELS.get(occupation.exposure_gradient, "Belum ada data"),
+        "gradient_label": GRADIENT_LABELS.get(occupation.gradient_cat or "", "Belum ada data"),
         "task_count": len(tasks),
         "task_groups": groups,
     }
@@ -75,10 +76,11 @@ async def get_occupation_tasks(code: str, response: Response, db: DB):
         "occupation": reference.occupation_view(occupation),
         "tasks": [
             {
-                "id": t.id,
+                "id": t.code or str(t.id),
                 "description": t.description,
                 "description_en": t.description_en,
                 "ilo_score": t.ilo_score,
+                "kind": t.kind,
                 "group": scoring.group_for(t.ilo_score),
                 "group_label": scoring.GROUP_LABELS[scoring.group_for(t.ilo_score)],
             }

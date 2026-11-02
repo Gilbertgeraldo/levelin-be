@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated, Literal
+from typing import Annotated
 
 from fastapi import APIRouter, Query
 
@@ -9,6 +9,7 @@ from app.core.pagination import Page, paginate_list
 from app.models import Course, CourseClick
 from app.schemas.courses import CourseClickOut, CourseOut
 from app.services import courses
+from app.services.courses import Budget
 from app.services.passport import proven_skill_ids
 from app.services.plans import active_plan, get_owned_plan
 
@@ -18,14 +19,14 @@ router = APIRouter(prefix="/courses", tags=["Kelas"])
 @router.get(
     "/recommendations",
     response_model=Page[CourseOut],
-    summary="Daftar kelas: urut skill gap terbayar lalu harga; label is_partner",
+    summary="Daftar kelas: urut skill gap yang ditutup lalu harga; filter all | free | under_500k | bootcamp",
 )
 async def recommendations(
     db: DB,
     user: CurrentUser,
     page: Pagination,
     plan_id: uuid.UUID | None = None,
-    budget: Literal["all", "free", "paid"] = "all",
+    budget: Budget = "all",
     max_price: Annotated[int | None, Query(ge=0)] = None,
 ):
     plan = await get_owned_plan(db, user, plan_id) if plan_id else await active_plan(db, user.id)

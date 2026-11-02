@@ -1,0 +1,1084 @@
+{
+ "_note": "Skor tugas: ILO-NASK Global AI Exposure Index 2025 (Gmyrek dkk., ILO Working Paper 140), CC BY 4.0. Teks tugas diterjemahkan dan diringkas oleh Tim Hearz; adaptasi ini tidak disiapkan, ditinjau, atau disahkan oleh ILO. Sumber: prototipe Levelin.html.",
+ "thresholds": {
+  "auto": 0.7,
+  "assist": 0.4
+ },
+ "save_factor": {
+  "auto": 0.6,
+  "assist": 0.3
+ },
+ "gradients": {
+  "Exposed: Gradient 4": "Gradien 4 (paparan tertinggi)",
+  "Exposed: Gradient 3": "Gradien 3",
+  "Exposed: Gradient 2": "Gradien 2",
+  "Exposed: Gradient 1": "Gradien 1",
+  "Minimal Exposure": "Paparan minimal"
+ },
+ "skills": [
+  {
+   "code": "ai",
+   "label": "Bekerja dengan AI (prompting & verifikasi)"
+  },
+  {
+   "code": "excel",
+   "label": "Spreadsheet lanjutan"
+  },
+  {
+   "code": "analisis",
+   "label": "Analisis & visualisasi data"
+  },
+  {
+   "code": "kualitas",
+   "label": "Kontrol kualitas data"
+  },
+  {
+   "code": "menulis",
+   "label": "Menulis & merangkum dokumen kerja"
+  },
+  {
+   "code": "keuangan",
+   "label": "Pembukuan & laporan keuangan"
+  },
+  {
+   "code": "sdm",
+   "label": "Administrasi SDM & penggajian"
+  },
+  {
+   "code": "layanan",
+   "label": "Komunikasi & layanan pelanggan"
+  },
+  {
+   "code": "proyek",
+   "label": "Koordinasi & manajemen proyek"
+  },
+  {
+   "code": "supervisi",
+   "label": "Supervisi & membimbing tim"
+  }
+ ],
+ "kinds": [
+  {
+   "code": "data",
+   "label": "Olah & input data",
+   "skill_codes": [
+    "excel",
+    "kualitas",
+    "ai"
+   ],
+   "mission_slug": "rapikan-data-penjualan"
+  },
+  {
+   "code": "dok",
+   "label": "Dokumen & surat",
+   "skill_codes": [
+    "menulis",
+    "ai"
+   ],
+   "mission_slug": "notulen-jadi-email"
+  },
+  {
+   "code": "hr",
+   "label": "Absensi & data karyawan",
+   "skill_codes": [
+    "sdm",
+    "excel"
+   ],
+   "mission_slug": "rekap-absensi-cabang"
+  },
+  {
+   "code": "layan",
+   "label": "Melayani orang",
+   "skill_codes": [
+    "layanan",
+    "ai"
+   ],
+   "mission_slug": null
+  },
+  {
+   "code": "koord",
+   "label": "Koordinasi & jadwal",
+   "skill_codes": [
+    "proyek"
+   ],
+   "mission_slug": "notulen-jadi-email"
+  },
+  {
+   "code": "fisik",
+   "label": "Barang & dokumen fisik",
+   "skill_codes": [],
+   "mission_slug": null
+  }
+ ],
+ "occupations": [
+  {
+   "code": "4110",
+   "isco_code": "4110",
+   "title": "Staf Administrasi Umum",
+   "title_en": "General Office Clerks",
+   "avg_exposure": 0.6,
+   "gradient_cat": "Exposed: Gradient 4",
+   "exposure_gradient": 4,
+   "naik_code": "3341",
+   "pindah_code": "3343",
+   "is_target": false,
+   "base_skills": [
+    "menulis"
+   ],
+   "target_skills": [],
+   "tasks": [
+    {
+     "code": "4110-1",
+     "description": "Mencatat, menyiapkan, menyortir, mengklasifikasikan, dan mengarsipkan informasi",
+     "ilo_score": 0.59,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4110-2",
+     "description": "Menyortir, membuka, dan mengirim surat",
+     "ilo_score": 0.39,
+     "kind": "fisik",
+     "candidate": true
+    },
+    {
+     "code": "4110-3",
+     "description": "Memfotokopi dan mengirim dokumen lewat faks",
+     "ilo_score": 0.54,
+     "kind": "fisik",
+     "candidate": true
+    },
+    {
+     "code": "4110-4",
+     "description": "Menyusun laporan dan surat-menyurat yang bersifat rutin",
+     "ilo_score": 0.65,
+     "kind": "dok",
+     "candidate": true
+    },
+    {
+     "code": "4110-5",
+     "description": "Mencatat pengeluaran peralatan untuk staf",
+     "ilo_score": 0.56,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4110-6",
+     "description": "Menjawab pertanyaan lewat telepon atau surel, atau meneruskannya ke orang yang tepat",
+     "ilo_score": 0.63,
+     "kind": "layan",
+     "candidate": true
+    },
+    {
+     "code": "4110-7",
+     "description": "Memeriksa angka, menyiapkan faktur, dan mencatat transaksi keuangan",
+     "ilo_score": 0.69,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4110-8",
+     "description": "Memasukkan informasi ke komputer serta memeriksa dan mengoreksi salinan",
+     "ilo_score": 0.71,
+     "kind": "data",
+     "candidate": true
+    }
+   ]
+  },
+  {
+   "code": "4120",
+   "isco_code": "4120",
+   "title": "Sekretaris",
+   "title_en": "Secretaries (general)",
+   "avg_exposure": 0.58,
+   "gradient_cat": "Exposed: Gradient 3",
+   "exposure_gradient": 3,
+   "naik_code": "3343",
+   "pindah_code": "3332",
+   "is_target": false,
+   "base_skills": [
+    "menulis"
+   ],
+   "target_skills": [],
+   "tasks": [
+    {
+     "code": "4120-1",
+     "description": "Memeriksa, memformat, dan mengetik surat, notulen, dan laporan dari dikte atau draf sesuai standar kantor",
+     "ilo_score": 0.64,
+     "kind": "dok",
+     "candidate": true
+    },
+    {
+     "code": "4120-2",
+     "description": "Memakai berbagai perangkat lunak, termasuk spreadsheet, untuk dukungan administrasi",
+     "ilo_score": 0.55,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4120-3",
+     "description": "Menangani surat masuk dan surat keluar",
+     "ilo_score": 0.41,
+     "kind": "fisik",
+     "candidate": true
+    },
+    {
+     "code": "4120-4",
+     "description": "Memindai, mencatat, dan mendistribusikan surat serta dokumen",
+     "ilo_score": 0.52,
+     "kind": "dok",
+     "candidate": true
+    },
+    {
+     "code": "4120-5",
+     "description": "Menyaring permintaan rapat atau janji temu dan membantu mengatur rapat",
+     "ilo_score": 0.76,
+     "kind": "koord",
+     "candidate": true
+    },
+    {
+     "code": "4120-6",
+     "description": "Menyaring dan mencatat cuti serta hak staf lainnya",
+     "ilo_score": 0.56,
+     "kind": "hr",
+     "candidate": true
+    },
+    {
+     "code": "4120-7",
+     "description": "Mengatur dan mengawasi sistem pengarsipan",
+     "ilo_score": 0.55,
+     "kind": "dok",
+     "candidate": true
+    },
+    {
+     "code": "4120-8",
+     "description": "Menangani korespondensi rutin atas inisiatif sendiri",
+     "ilo_score": 0.64,
+     "kind": "dok",
+     "candidate": true
+    }
+   ]
+  },
+  {
+   "code": "4132",
+   "isco_code": "4132",
+   "title": "Operator Entri Data",
+   "title_en": "Data Entry Clerks",
+   "avg_exposure": 0.7,
+   "gradient_cat": "Exposed: Gradient 4",
+   "exposure_gradient": 4,
+   "naik_code": "3314",
+   "pindah_code": "3313",
+   "is_target": false,
+   "base_skills": [
+    "excel"
+   ],
+   "target_skills": [],
+   "tasks": [
+    {
+     "code": "4132-1",
+     "description": "Menerima dan mendaftarkan faktur, formulir, dan dokumen untuk diinput",
+     "ilo_score": 0.72,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4132-2",
+     "description": "Memasukkan data angka, kode, dan teks dari dokumen sumber ke komputer",
+     "ilo_score": 0.74,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4132-3",
+     "description": "Memverifikasi akurasi dan kelengkapan data serta mengoreksinya bila perlu",
+     "ilo_score": 0.69,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4132-4",
+     "description": "Mengoperasikan mesin hitung dan mesin pembukuan",
+     "ilo_score": 0.66,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4132-5",
+     "description": "Mengimpor dan mengekspor data antarsistem dan perangkat lunak",
+     "ilo_score": 0.7,
+     "kind": "data",
+     "candidate": true
+    }
+   ]
+  },
+  {
+   "code": "4222",
+   "isco_code": "4222",
+   "title": "Staf Contact Center / Layanan Pelanggan",
+   "title_en": "Contact Centre Information Clerks",
+   "avg_exposure": 0.58,
+   "gradient_cat": "Exposed: Gradient 3",
+   "exposure_gradient": 3,
+   "naik_code": "3341",
+   "pindah_code": "2421",
+   "is_target": false,
+   "base_skills": [
+    "layanan"
+   ],
+   "target_skills": [],
+   "tasks": [
+    {
+     "code": "4222-1",
+     "description": "Menangani panggilan dan pesan pelanggan: menjawab pertanyaan, permintaan layanan, atau keluhan",
+     "ilo_score": 0.56,
+     "kind": "layan",
+     "candidate": true
+    },
+    {
+     "code": "4222-2",
+     "description": "Mengidentifikasi kebutuhan pelanggan dan mencatat kejadian ke sistem",
+     "ilo_score": 0.62,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4222-3",
+     "description": "Meneruskan tugas ke unit lain bila diperlukan",
+     "ilo_score": 0.52,
+     "kind": "koord",
+     "candidate": true
+    },
+    {
+     "code": "4222-4",
+     "description": "Membuat tagihan atau menangani pembayaran bila diperlukan",
+     "ilo_score": 0.61,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4222-5",
+     "description": "Mengirim surat, lembar informasi, dan dokumen lain ke pelanggan",
+     "ilo_score": 0.66,
+     "kind": "dok",
+     "candidate": true
+    },
+    {
+     "code": "4222-6",
+     "description": "Menawarkan produk atau layanan tambahan kepada pelanggan",
+     "ilo_score": 0.52,
+     "kind": "layan",
+     "candidate": true
+    }
+   ]
+  },
+  {
+   "code": "4226",
+   "isco_code": "4226",
+   "title": "Resepsionis",
+   "title_en": "Receptionists (general)",
+   "avg_exposure": 0.57,
+   "gradient_cat": "Exposed: Gradient 3",
+   "exposure_gradient": 3,
+   "naik_code": "3341",
+   "pindah_code": "3332",
+   "is_target": false,
+   "base_skills": [
+    "layanan"
+   ],
+   "target_skills": [],
+   "tasks": [
+    {
+     "code": "4226-1",
+     "description": "Menerima dan menyambut pengunjung, tamu, atau klien",
+     "ilo_score": 0.36,
+     "kind": "layan",
+     "candidate": true
+    },
+    {
+     "code": "4226-2",
+     "description": "Membuat janji temu untuk klien",
+     "ilo_score": 0.73,
+     "kind": "koord",
+     "candidate": true
+    },
+    {
+     "code": "4226-3",
+     "description": "Melayani permintaan informasi atau janji temu lewat telepon",
+     "ilo_score": 0.62,
+     "kind": "layan",
+     "candidate": true
+    },
+    {
+     "code": "4226-4",
+     "description": "Mengarahkan klien ke lokasi atau orang yang tepat",
+     "ilo_score": 0.41,
+     "kind": "layan",
+     "candidate": true
+    },
+    {
+     "code": "4226-5",
+     "description": "Menyediakan pamflet, brosur, atau formulir informasi",
+     "ilo_score": 0.69,
+     "kind": "dok",
+     "candidate": true
+    }
+   ]
+  },
+  {
+   "code": "4311",
+   "isco_code": "4311",
+   "title": "Staf Administrasi Keuangan / Pembukuan",
+   "title_en": "Accounting and Bookkeeping Clerks",
+   "avg_exposure": 0.64,
+   "gradient_cat": "Exposed: Gradient 4",
+   "exposure_gradient": 4,
+   "naik_code": "3313",
+   "pindah_code": "3314",
+   "is_target": false,
+   "base_skills": [
+    "keuangan"
+   ],
+   "target_skills": [],
+   "tasks": [
+    {
+     "code": "4311-1",
+     "description": "Memeriksa angka, posting, dan dokumen agar entri, perhitungan, dan kodenya benar",
+     "ilo_score": 0.53,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4311-2",
+     "description": "Mengoperasikan perangkat lunak akuntansi untuk mencatat, menyimpan, dan menganalisis informasi",
+     "ilo_score": 0.7,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4311-3",
+     "description": "Mengklasifikasikan, mencatat, dan merangkum data keuangan ke jurnal dan buku besar",
+     "ilo_score": 0.62,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4311-4",
+     "description": "Menghitung, menyiapkan, dan menerbitkan tagihan, faktur, dan laporan rekening sesuai prosedur",
+     "ilo_score": 0.71,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4311-5",
+     "description": "Menyusun laporan dan tabel keuangan, misalnya kas masuk, pengeluaran, utang-piutang, serta laba rugi",
+     "ilo_score": 0.64,
+     "kind": "dok",
+     "candidate": true
+    }
+   ]
+  },
+  {
+   "code": "4313",
+   "isco_code": "4313",
+   "title": "Staf Penggajian",
+   "title_en": "Payroll Clerks",
+   "avg_exposure": 0.61,
+   "gradient_cat": "Exposed: Gradient 4",
+   "exposure_gradient": 4,
+   "naik_code": "3313",
+   "pindah_code": "2423",
+   "is_target": false,
+   "base_skills": [
+    "sdm"
+   ],
+   "target_skills": [],
+   "tasks": [
+    {
+     "code": "4313-1",
+     "description": "Mencatat kehadiran, cuti, dan lembur karyawan untuk menghitung gaji dan tunjangan",
+     "ilo_score": 0.67,
+     "kind": "hr",
+     "candidate": true
+    },
+    {
+     "code": "4313-2",
+     "description": "Menyiapkan dan memverifikasi slip gaji: gaji kotor, gaji bersih, dan potongan",
+     "ilo_score": 0.58,
+     "kind": "hr",
+     "candidate": true
+    },
+    {
+     "code": "4313-3",
+     "description": "Menyiapkan pembayaran gaji dan tunjangan lewat transfer",
+     "ilo_score": 0.58,
+     "kind": "hr",
+     "candidate": true
+    },
+    {
+     "code": "4313-4",
+     "description": "Meninjau lembar waktu dan perhitungan upah untuk menemukan dan merekonsiliasi selisih",
+     "ilo_score": 0.51,
+     "kind": "hr",
+     "candidate": true
+    },
+    {
+     "code": "4313-5",
+     "description": "Memverifikasi kehadiran, jam kerja, dan penyesuaian gaji, lalu mencatatnya",
+     "ilo_score": 0.7,
+     "kind": "hr",
+     "candidate": true
+    }
+   ]
+  },
+  {
+   "code": "4321",
+   "isco_code": "4321",
+   "title": "Staf Administrasi Gudang / Stok",
+   "title_en": "Stock Clerks",
+   "avg_exposure": 0.37,
+   "gradient_cat": "Minimal Exposure",
+   "exposure_gradient": 0,
+   "naik_code": "3341",
+   "pindah_code": "3323",
+   "is_target": false,
+   "base_skills": [
+    "proyek"
+   ],
+   "target_skills": [],
+   "tasks": [
+    {
+     "code": "4321-1",
+     "description": "Mengatur dan mengendalikan penerimaan serta pengiriman barang dan mencatatnya",
+     "ilo_score": 0.39,
+     "kind": "fisik",
+     "candidate": true
+    },
+    {
+     "code": "4321-2",
+     "description": "Mengelola catatan stok, memverifikasi pengeluaran barang, memperkirakan kebutuhan, dan mengajukan permintaan stok",
+     "ilo_score": 0.43,
+     "kind": "data",
+     "candidate": true
+    },
+    {
+     "code": "4321-3",
+     "description": "Menerima, menyimpan, dan mengeluarkan alat atau suku cadang serta mencatatnya",
+     "ilo_score": 0.39,
+     "kind": "fisik",
+     "candidate": true
+    },
+    {
+     "code": "4321-4",
+     "description": "Menimbang barang yang diterima, diproduksi, atau dikirim dan mencatatnya",
+     "ilo_score": 0.27,
+     "kind": "fisik",
+     "candidate": true
+    },
+    {
+     "code": "4321-5",
+     "description": "Menyusun inventaris barang yang diterima untuk disimpan",
+     "ilo_score": 0.38,
+     "kind": "fisik",
+     "candidate": true
+    }
+   ]
+  },
+  {
+   "code": "4323",
+   "isco_code": "4323",
+   "title": "Staf Administrasi Transportasi / Logistik",
+   "title_en": "Transport Clerks",
+   "avg_exposure": 0.5,
+   "gradient_cat": "Exposed: Gradient 3",
+   "exposure_gradient": 3,
+   "naik_code": "3341",
+   "pindah_code": "3323",
+   "is_target": false,
+   "base_skills": [
+    "proyek"
+   ],
+   "target_skills": [],
+   "tasks": [
+    {
+     "code": "4323-1",
+     "description": "Mencatat aspek operasional dan mengoordinasikan jadwal angkutan penumpang dan barang",
+     "ilo_score": 0.5,
+     "kind": "koord",
+     "candidate": true
+    },
+    {
+     "code": "4323-4",
+     "description": "Mengoordinasikan dan mencatat operasional angkutan darat, seperti alokasi kendaraan dan sopir serta bongkar muat",
+     "ilo_score": 0.58,
+     "kind": "koord",
+     "candidate": true
+    },
+    {
+     "code": "4323-6",
+     "description": "Menyusun laporan untuk manajemen",
+     "ilo_score": 0.57,
+     "kind": "dok",
+     "candidate": true
+    }
+   ]
+  },
+  {
+   "code": "4416",
+   "isco_code": "4416",
+   "title": "Staf Administrasi Personalia / HR",
+   "title_en": "Personnel Clerks",
+   "avg_exposure": 0.6,
+   "gradient_cat": "Exposed: Gradient 4",
+   "exposure_gradient": 4,
+   "naik_code": "2423",
+   "pindah_code": "3333",
+   "is_target": false,
+   "base_skills": [
+    "sdm"
+   ],
+   "target_skills": [],
+   "tasks": [
+    {
+     "code": "4416-1",
+     "description": "Memperbarui data riwayat kerja, gaji, penilaian kinerja, kualifikasi, pelatihan, dan cuti karyawan",
+     "ilo_score": 0.64,
+     "kind": "hr",
+     "candidate": true
+    },
+    {
+     "code": "4416-2",
+     "description": "Membuat data untuk karyawan baru dan memeriksa kelengkapannya",
+     "ilo_score": 0.61,
+     "kind": "hr",
+     "candidate": true
+    },
+    {
+     "code": "4416-3",
+     "description": "Memproses lamaran kerja dan promosi serta memberi tahu hasilnya",
+     "ilo_score": 0.44,
+     "kind": "hr",
+     "candidate": true
+    },
+    {
+     "code": "4416-4",
+     "description": "Menjawab pertanyaan tentang hak dan ketentuan kerja",
+     "ilo_score": 0.53,
+     "kind": "layan",
+     "candidate": true
+    },
+    {
+     "code": "4416-5",
+     "description": "Mengirim pengumuman lowongan, lamaran, dan jadwal ujian seleksi",
+     "ilo_score": 0.68,
+     "kind": "dok",
+     "candidate": true
+    },
+    {
+     "code": "4416-6",
+     "description": "Mengelola arsip manual dan digital serta menyusun laporan kegiatan personalia",
+     "ilo_score": 0.66,
+     "kind": "dok",
+     "candidate": true
+    },
+    {
+     "code": "4416-7",
+     "description": "Menyimpan dan mengambil berkas personalia sesuai permintaan",
+     "ilo_score": 0.68,
+     "kind": "dok",
+     "candidate": true
+    }
+   ]
+  },
+  {
+   "code": "2421",
+   "isco_code": "2421",
+   "title": "Analis Proses & Organisasi",
+   "title_en": null,
+   "avg_exposure": 0.46,
+   "gradient_cat": "Exposed: Gradient 2",
+   "exposure_gradient": 2,
+   "naik_code": null,
+   "pindah_code": null,
+   "is_target": true,
+   "base_skills": [],
+   "target_skills": [
+    "analisis",
+    "proyek",
+    "layanan"
+   ],
+   "tasks": [
+    {
+     "code": "2421-3",
+     "description": "Berdiskusi dengan staf dan mengamati sistem kerja",
+     "ilo_score": 0.28,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "2421-2",
+     "description": "Menganalisis sistem dan struktur yang berjalan",
+     "ilo_score": 0.41,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "2421-7",
+     "description": "Menyusun usulan perbaikan prosedur dan alur kerja",
+     "ilo_score": 0.47,
+     "kind": null,
+     "candidate": false
+    }
+   ]
+  },
+  {
+   "code": "2423",
+   "isco_code": "2423",
+   "title": "Profesional SDM & Karier",
+   "title_en": null,
+   "avg_exposure": 0.45,
+   "gradient_cat": "Exposed: Gradient 2",
+   "exposure_gradient": 2,
+   "naik_code": null,
+   "pindah_code": null,
+   "is_target": true,
+   "base_skills": [],
+   "target_skills": [
+    "sdm",
+    "analisis",
+    "layanan"
+   ],
+   "tasks": [
+    {
+     "code": "2423-1",
+     "description": "Menjalankan fungsi personalia: rekrutmen, penempatan, pelatihan",
+     "ilo_score": 0.39,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "2423-5",
+     "description": "Memberi saran karier dan pelatihan",
+     "ilo_score": 0.43,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "2423-2",
+     "description": "Menganalisis jabatan lewat wawancara dengan pekerja dan atasan",
+     "ilo_score": 0.53,
+     "kind": null,
+     "candidate": false
+    }
+   ]
+  },
+  {
+   "code": "3313",
+   "isco_code": "3313",
+   "title": "Staf Akuntansi Pelaksana",
+   "title_en": null,
+   "avg_exposure": 0.49,
+   "gradient_cat": "Exposed: Gradient 2",
+   "exposure_gradient": 2,
+   "naik_code": null,
+   "pindah_code": null,
+   "is_target": true,
+   "base_skills": [],
+   "target_skills": [
+    "keuangan",
+    "excel",
+    "analisis"
+   ],
+   "tasks": [
+    {
+     "code": "3313-4",
+     "description": "Memecahkan masalah pembukuan dengan prinsip akuntansi",
+     "ilo_score": 0.39,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "3313-2",
+     "description": "Memverifikasi dokumen pembayaran dan penerimaan",
+     "ilo_score": 0.51,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "3313-3",
+     "description": "Menyusun laporan keuangan periodik",
+     "ilo_score": 0.61,
+     "kind": null,
+     "candidate": false
+    }
+   ]
+  },
+  {
+   "code": "3314",
+   "isco_code": "3314",
+   "title": "Asisten Analis Data / Statistik",
+   "title_en": null,
+   "avg_exposure": 0.57,
+   "gradient_cat": "Exposed: Gradient 3",
+   "exposure_gradient": 3,
+   "naik_code": null,
+   "pindah_code": null,
+   "is_target": true,
+   "base_skills": [],
+   "target_skills": [
+    "analisis",
+    "excel",
+    "kualitas"
+   ],
+   "tasks": [
+    {
+     "code": "3314-7",
+     "description": "Menerapkan prinsip statistik untuk memecahkan masalah",
+     "ilo_score": 0.62,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "3314-4",
+     "description": "Mengendalikan mutu pengumpulan data",
+     "ilo_score": 0.53,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "3314-6",
+     "description": "Menyajikan hasil dalam grafik dan tabel",
+     "ilo_score": 0.68,
+     "kind": null,
+     "candidate": false
+    }
+   ]
+  },
+  {
+   "code": "3323",
+   "isco_code": "3323",
+   "title": "Staf Pengadaan",
+   "title_en": null,
+   "avg_exposure": 0.39,
+   "gradient_cat": "Minimal Exposure",
+   "exposure_gradient": 0,
+   "naik_code": null,
+   "pindah_code": null,
+   "is_target": true,
+   "base_skills": [],
+   "target_skills": [
+    "proyek",
+    "excel",
+    "layanan"
+   ],
+   "tasks": [
+    {
+     "code": "3323-8",
+     "description": "Bernegosiasi harga dan syarat dengan pemasok",
+     "ilo_score": 0.32,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "3323-10",
+     "description": "Memantau pengiriman dan menyelesaikan masalah dengan pemasok",
+     "ilo_score": 0.49,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "3323-2",
+     "description": "Menentukan kebutuhan dan spesifikasi pembelian",
+     "ilo_score": 0.51,
+     "kind": null,
+     "candidate": false
+    }
+   ]
+  },
+  {
+   "code": "3332",
+   "isco_code": "3332",
+   "title": "Perencana Acara & Konferensi",
+   "title_en": null,
+   "avg_exposure": 0.48,
+   "gradient_cat": "Exposed: Gradient 2",
+   "exposure_gradient": 2,
+   "naik_code": null,
+   "pindah_code": null,
+   "is_target": true,
+   "base_skills": [],
+   "target_skills": [
+    "proyek",
+    "layanan",
+    "menulis"
+   ],
+   "tasks": [
+    {
+     "code": "3332-6",
+     "description": "Menegosiasikan jenis dan biaya layanan sesuai anggaran",
+     "ilo_score": 0.35,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "3332-4",
+     "description": "Mengoordinasikan fasilitas, katering, dan perlengkapan acara",
+     "ilo_score": 0.39,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "3332-3",
+     "description": "Bertemu klien untuk membahas kebutuhan",
+     "ilo_score": 0.4,
+     "kind": null,
+     "candidate": false
+    }
+   ]
+  },
+  {
+   "code": "3333",
+   "isco_code": "3333",
+   "title": "Rekruter / Agen Penempatan Kerja",
+   "title_en": null,
+   "avg_exposure": 0.39,
+   "gradient_cat": "Minimal Exposure",
+   "exposure_gradient": 0,
+   "naik_code": null,
+   "pindah_code": null,
+   "is_target": true,
+   "base_skills": [],
+   "target_skills": [
+    "sdm",
+    "layanan",
+    "menulis"
+   ],
+   "tasks": [
+    {
+     "code": "3333-3",
+     "description": "Membahas kebutuhan skill dengan pemberi kerja",
+     "ilo_score": 0.33,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "3333-5",
+     "description": "Memastikan kontrak kerja sesuai aturan",
+     "ilo_score": 0.34,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "3333-1",
+     "description": "Mencocokkan pencari kerja dengan lowongan",
+     "ilo_score": 0.56,
+     "kind": null,
+     "candidate": false
+    }
+   ]
+  },
+  {
+   "code": "3341",
+   "isco_code": "3341",
+   "title": "Supervisor Kantor",
+   "title_en": null,
+   "avg_exposure": 0.43,
+   "gradient_cat": "Exposed: Gradient 2",
+   "exposure_gradient": 2,
+   "naik_code": null,
+   "pindah_code": null,
+   "is_target": true,
+   "base_skills": [],
+   "target_skills": [
+    "supervisi",
+    "proyek",
+    "ai"
+   ],
+   "tasks": [
+    {
+     "code": "3341-1",
+     "description": "Mengoordinasikan, membagi, dan memeriksa pekerjaan staf administrasi",
+     "ilo_score": 0.64,
+     "kind": "koord",
+     "candidate": true
+    },
+    {
+     "code": "3341-2",
+     "description": "Menyusun jadwal dan prosedur kerja serta berkoordinasi dengan unit atau departemen lain",
+     "ilo_score": 0.39,
+     "kind": "koord",
+     "candidate": true
+    },
+    {
+     "code": "3341-3",
+     "description": "Menyelesaikan masalah kerja serta menyiapkan laporan kemajuan",
+     "ilo_score": 0.47,
+     "kind": "koord",
+     "candidate": true
+    },
+    {
+     "code": "3341-4",
+     "description": "Melatih dan membimbing karyawan tentang tugas, keselamatan, dan kebijakan perusahaan",
+     "ilo_score": 0.34,
+     "kind": "koord",
+     "candidate": true
+    },
+    {
+     "code": "3341-5",
+     "description": "Menilai kinerja karyawan dan merekomendasikan tindakan personalia",
+     "ilo_score": 0.34,
+     "kind": "koord",
+     "candidate": true
+    },
+    {
+     "code": "3341-6",
+     "description": "Membantu rekrutmen, wawancara, dan seleksi karyawan",
+     "ilo_score": 0.41,
+     "kind": "hr",
+     "candidate": true
+    }
+   ]
+  },
+  {
+   "code": "3343",
+   "isco_code": "3343",
+   "title": "Sekretaris Eksekutif",
+   "title_en": null,
+   "avg_exposure": 0.54,
+   "gradient_cat": "Exposed: Gradient 3",
+   "exposure_gradient": 3,
+   "naik_code": null,
+   "pindah_code": null,
+   "is_target": true,
+   "base_skills": [],
+   "target_skills": [
+    "menulis",
+    "proyek",
+    "ai"
+   ],
+   "tasks": [
+    {
+     "code": "3343-4",
+     "description": "Membantu menyusun anggaran, memantau pengeluaran, dan menyiapkan kontrak",
+     "ilo_score": 0.46,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "3343-5",
+     "description": "Berkoordinasi dengan staf lain tentang operasional organisasi",
+     "ilo_score": 0.32,
+     "kind": null,
+     "candidate": false
+    },
+    {
+     "code": "3343-2",
+     "description": "Memantau tenggat dan tindak lanjut",
+     "ilo_score": 0.59,
+     "kind": null,
+     "candidate": false
+    }
+   ]
+  }
+ ]
+}

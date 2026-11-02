@@ -1,293 +1,294 @@
-"""Alur lengkap aplikasi pekerja tanpa LLM (semua fitur AI jalan lewat cadangan)."""
+"""Alur aplikasi pekerja L1-L10 dengan cerita Rina dari prototipe, tanpa LLM (jalur cadangan)."""
 
 import pytest
 
 from app.core.config import get_settings
 from tests.conftest import WORKER_EMAIL, auth, parse_sse, sse_text
+from tests.test_rules import M2_EMAIL, RINA_STORY
 
 pytestmark = pytest.mark.anyio
 
-STORY = (
-    "Setiap hari saya merekap data penjualan di Excel sekitar 2 jam. "
-    "Lalu saya membalas email pertanyaan pelanggan pakai ChatGPT. "
-    "Saya juga mengarsipkan dokumen dan faktur ke folder bersama."
-)
-CORRECT_REKAP = {
-    "total_penjualan": "162000000",
-    "wilayah_tertinggi": "Timur",
-    "perubahan_persen": "8",
-    "koreksi_ringkasan_ai": "Ringkasan AI salah: total seharusnya 162 juta, naik 8%, tertinggi Timur.",
-    "ringkasan": "Total penjualan Rp162 juta, naik 8%. Timur tertinggi. Saran: fokus dorong wilayah Barat.",
+TEMPLATE_TASKS = [{"ilo_task_id": "4311-1", "hours_per_week": 3}, {"ilo_task_id": "4311-3", "hours_per_week": 4}]
+M1_ANSWERS = {
+    "dup": "1",
+    "total": "20.980.000",
+    "top": "Cikarang",
+    "ringkasan": (
+        "Setelah format nilai disamakan dan satu baris duplikat Bekasi dihapus, total penjualan Lunas "
+        "September adalah Rp20.980.000. Cikarang tertinggi dengan Rp7.850.000. Ada satu baris tanpa tanggal "
+        "dari CV Mandiri yang perlu dicek ke cabang Bekasi."
+    ),
 }
+AI_USAGE = "Aku minta AI menyamakan format nilai lalu kucek ulang dengan SUMIF."
 
 
-async def _onboard(client, headers):
+async def onboard(client, headers, occupation: str = "4311"):
     r = await client.put(
         "/v1/me/profile",
         headers=headers,
-        json={"occupation_code": "4110", "industry": "Ritel", "years_experience": 3,
-              "goal": "naik_jabatan", "consent_data_processing": True},
+        json={"occupation_code": occupation, "industry": "Distribusi", "experience_range": "3–5 tahun",
+              "goal": "naik", "consent_data_processing": True},
     )
     assert r.status_code == 200, r.text
 
 
-async def _mission_id(client, headers, slug):
+async def mission_id(client, headers, slug: str) -> str:
     r = await client.get("/v1/missions", headers=headers, params={"limit": 50})
     return next(m["id"] for m in r.json()["data"] if m["slug"] == slug)
 
 
+async def create_audit(client, headers, story: str | None = RINA_STORY) -> dict:
+    r = await client.post("/v1/audits", headers=headers, json={"template_tasks": TEMPLATE_TASKS, "story": story})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
 async def test_auth_and_error_format(client):
     r = await client.get("/v1/me")
-    assert r.status_code == 401
-    assert r.json() == {"error": {"code": "unauthorized", "message": r.json()["error"]["message"]}}
+    assert r.status_code == 401 and r.json()["error"]["code"] == "unauthorized"
     r = await client.get("/v1/me", headers={"Authorization": "Bearer bukan.jwt.valid"})
     assert r.status_code == 401 and r.json()["error"]["code"] == "invalid_token"
     r = await client.get("/v1/occupations/9999")
     assert r.status_code == 404 and r.json()["error"]["code"] == "not_found"
-    r = await client.put("/v1/me/profile", headers=auth(), json={"occupation_code": "4110"})
+    r = await client.put("/v1/me/profile", headers=auth(), json={"occupation_code": "4311"})
     assert r.status_code == 400 and r.json()["error"]["code"] == "validation_error"
 
 
-async def test_me_provisioning_and_invitation(client):
-    r = await client.get("/v1/me", headers=auth())
-    assert r.status_code == 200
-    me = r.json()
+async def test_me_joins_organization_from_invitation(client):
+    me = (await client.get("/v1/me", headers=auth())).json()
     assert me["email"] == WORKER_EMAIL and me["role"] == "worker"
-    # Undangan demo untuk email ini otomatis diterima
-    assert me["organization"]["slug"] == "contoh-sejahtera"
-    assert me["department"] == "Operasional"
+    assert me["organization"]["slug"] == "sinar-distribusi"
+    assert me["department"] == "Keuangan & Akuntansi"
+    assert me["teams"] == []
     assert me["subscription"]["plan"] == "organisasi"
 
 
 async def test_reference_endpoints(client):
-    r = await client.get("/v1/occupations", params={"q": "admin"})
-    assert r.status_code == 200
-    assert r.json()[0]["code"] == "4110"
+    r = await client.get("/v1/occupations", params={"q": "keuangan"})
+    assert r.json()[0]["code"] == "4311"
     assert "max-age" in r.headers["cache-control"]
-    r = await client.get("/v1/occupations/4110")
-    assert r.json()["gradient_label"].startswith("Gradien 4")
-    r = await client.get("/v1/occupations/4110/tasks")
-    scores = [t["ilo_score"] for t in r.json()["tasks"]]
-    assert scores == sorted(scores, reverse=True)
-    r = await client.get("/v1/occupations/4110/next-roles")
-    assert r.status_code == 200 and r.json()[0]["occupation"]["code"] == "4120"
-    r = await client.get("/v1/skills", params={"category": "ai", "limit": 2})
-    body = r.json()
-    assert body["meta"]["total"] == 4 and len(body["data"]) == 2 and body["meta"]["has_next"]
+    # Jabatan tujuan tidak muncul di onboarding
+    assert all(o["code"] != "3313" for o in (await client.get("/v1/occupations", params={"limit": 30})).json())
+    r = await client.get("/v1/occupations/4311")
+    assert r.json()["gradient_label"] == "Gradien 4 (paparan tertinggi)" and r.json()["avg_exposure"] == 0.64
+    tasks = (await client.get("/v1/occupations/4311/tasks")).json()["tasks"]
+    assert [t["id"] for t in tasks] == ["4311-1", "4311-2", "4311-3", "4311-4", "4311-5"]
+    assert tasks[0]["kind"] == "data" and tasks[1]["group"] == "auto" and tasks[0]["group"] == "assist"
+    roles = (await client.get("/v1/occupations/4311/next-roles")).json()
+    assert [(r["direction"], r["occupation"]["code"]) for r in roles[:2]] == [("naik", "3313"), ("pindah", "3314")]
+    assert {s["code"] for s in roles[0]["skills_to_learn"]} == {"keuangan", "excel", "analisis"}
 
 
 async def test_full_worker_journey(client):
     h = auth()
-    # L2 -> L3: audit wajib persetujuan
-    r = await client.post("/v1/audits", headers=h, json={"occupation_code": "4110", "story": STORY})
+    r = await client.post("/v1/audits", headers=h, json={"template_tasks": TEMPLATE_TASKS})
     assert r.status_code == 403 and r.json()["error"]["code"] == "consent_required"
-    await _onboard(client, h)
+    await onboard(client, h)
 
-    r = await client.post(
-        "/v1/audits",
-        headers=h,
-        json={"occupation_code": "4110", "story": STORY,
-              "tasks": [{"template_task_id": 8, "hours_per_week": 4}]},
-    )
-    assert r.status_code == 201, r.text
-    audit = r.json()
-    assert audit["engine"] == "fallback"
-    assert audit["engine_detail"]["extraction"] == "rules"
-    assert len(audit["tasks"]) == 4
-    rekap = next(t for t in audit["tasks"] if "merekap" in t["description"].lower())
-    assert rekap["hours_per_week"] == 10
-    assert rekap["template_task"] is not None and rekap["group"] in ("high", "medium")
-    s = audit["summary"]
-    assert 0 <= s["readiness_score"] <= 100
-    assert s["total_hours"] == sum(t["hours_per_week"] for t in audit["tasks"])
-
-    # PATCH: tandai sudah pakai AI -> adopsi naik, skor kesiapan naik
-    r = await client.patch(f"/v1/audits/{audit['id']}/tasks/{rekap['id']}", headers=h, json={"uses_ai": True})
-    patched = r.json()
-    assert patched["summary"]["ai_adoption"] > s["ai_adoption"]
-    assert patched["summary"]["readiness_score"] >= s["readiness_score"]
-    # Ganti kecocokan ILO ke template lain
-    r = await client.patch(f"/v1/audits/{audit['id']}/tasks/{rekap['id']}", headers=h, json={"template_task_id": 1})
-    task = next(t for t in r.json()["tasks"] if t["id"] == rekap["id"])
-    assert task["ilo_score"] == 0.82 and task["match_overridden"]
-    r = await client.patch(f"/v1/audits/{audit['id']}/tasks/{rekap['id']}", headers=h, json={"template_task_id": 9})
+    r = await client.post("/v1/audits", headers=h, json={"template_tasks": [{"ilo_task_id": "9999-1", "hours_per_week": 2}]})
     assert r.status_code == 400 and r.json()["error"]["code"] == "invalid_template_task"
 
-    # Tambah & hapus tugas manual
+    # L2 -> L3: Peta Tugas (payload v0.1)
+    audit = await create_audit(client, h)
+    assert audit["engine"] == "fallback" and audit["occupation"] == {"code": "4311", "name": "Staf Administrasi Keuangan / Pembukuan"}
+    first = audit["tasks"][0]
+    assert first["ilo_task_id"] == "4311-1" and first["ilo_score"] == 0.53 and first["group"] == "assist"
+    assert first["confidence"] == "template" and first["source"] in ("template", "template+story")
+    assert set(first) == {"id", "name", "hours_per_week", "ilo_task_id", "ilo_text", "ilo_score", "group",
+                          "confidence", "source", "uses_ai"}
+    assert len(audit["tasks"]) >= 5
+    s = audit["summary"]
+    assert set(s) == {"readiness_score", "hours_by_group", "exposed_hours", "hours_saved", "save_factor"}
+    assert s["readiness_score"] == 0
+    assert sum(s["hours_by_group"].values()) == pytest.approx(sum(t["hours_per_week"] for t in audit["tasks"]))
+
+    # Tandai "sudah pakai AI" -> tugas terpapar dihitung setengah siap
+    r = await client.patch(f"/v1/audits/{audit['id']}/tasks/{first['id']}", headers=h, json={"uses_ai": True})
+    assert r.json()["summary"]["readiness_score"] > 0
+
+    # Tugas tak terpetakan: kelompok dipilih sendiri; tugas berpadanan ILO tidak boleh
     r = await client.post(f"/v1/audits/{audit['id']}/tasks", headers=h,
-                          json={"description": "Menjadwalkan rapat mingguan tim", "hours_per_week": 2})
-    assert r.status_code == 201
-    new_task = next(t for t in r.json()["tasks"] if t["source"] == "manual")
-    r = await client.delete(f"/v1/audits/{audit['id']}/tasks/{new_task['id']}", headers=h)
-    assert len(r.json()["tasks"]) == 4
+                          json={"name": "Menemani auditor eksternal", "hours_per_week": 2})
+    manual = next(t for t in r.json()["tasks"] if t["source"] == "manual")
+    assert manual["group"] == "none" and manual["ilo_task_id"] is None
+    r = await client.patch(f"/v1/audits/{audit['id']}/tasks/{manual['id']}", headers=h, json={"group": "human"})
+    assert next(t for t in r.json()["tasks"] if t["id"] == manual["id"])["group"] == "human"
+    r = await client.patch(f"/v1/audits/{audit['id']}/tasks/{first['id']}", headers=h, json={"group": "human"})
+    assert r.status_code == 400
+    r = await client.patch(f"/v1/audits/{audit['id']}/tasks/{manual['id']}", headers=h, json={"ilo_task_id": "4311-4"})
+    assert next(t for t in r.json()["tasks"] if t["id"] == manual["id"])["group"] == "auto"
+    r = await client.delete(f"/v1/audits/{audit['id']}/tasks/{manual['id']}", headers=h)
+    assert all(t["id"] != manual["id"] for t in r.json()["tasks"])
 
-    r = await client.get("/v1/audits/latest", headers=h)
-    assert r.json()["id"] == audit["id"]
-    r = await client.get("/v1/audits", headers=h)
-    assert r.json()["meta"]["total"] == 1
     r = await client.get(f"/v1/audits/{audit['id']}/share-card", headers=h)
-    assert "PHK" not in r.json()["share_text"]
+    assert "PHK" not in r.json()["share_text"] and sum(r.json()["share"].values()) == 100
 
-    # Penjelasan (SSE, cadangan)
-    r = await client.post(f"/v1/audits/{audit['id']}/explain", headers=h)
-    assert r.status_code == 200 and r.headers["content-type"].startswith("text/event-stream")
-    events = parse_sse(r.text)
-    assert events[0] == ("meta", {"engine": "fallback"})
-    assert events[-1][0] == "done"
-    assert "Skor Kesiapan" in sse_text(events)
+    # Penjelasan (SSE, cadangan seperti mode demo prototipe)
+    events = parse_sse((await client.post(f"/v1/audits/{audit['id']}/explain", headers=h)).text)
+    assert events[0] == ("meta", {"engine": "fallback"}) and events[-1][0] == "done"
+    text = sse_text(events)
+    assert text.startswith("Rina, dari") and "Rapikan data penjualan cabang" in text
 
-    # L4: rencana
-    r = await client.post("/v1/plans", headers=h, json={"audit_id": audit["id"], "direction": "upskill"})
+    # L4: rencana tiga arah
+    r = await client.post("/v1/plans", headers=h, json={"audit_id": audit["id"], "direction": "naik"})
     assert r.status_code == 201, r.text
     plan = r.json()
-    assert [p["key"] for p in plan["phases"]] == ["fondasi", "praktik", "bukti"]
-    mission_items = [i for p in plan["phases"] for i in p["items"] if i["type"] == "mission"]
-    assert mission_items and plan["progress"] == 0
-    r = await client.patch(f"/v1/plans/{plan['id']}", headers=h, json={"direction": "pivot", "target_occupation_code": "2423"})
-    assert r.json()["target_occupation"]["code"] == "2423"
-    r = await client.patch(f"/v1/plans/{plan['id']}", headers=h, json={"direction": "upskill"})
-    assert r.json()["direction"] == "upskill" and r.json()["target_occupation"] is None
-    r = await client.post(f"/v1/plans/{plan['id']}/narrative", headers=h)
-    assert "Fase Fondasi" in sse_text(parse_sse(r.text))
+    assert plan["target_occupation"]["code"] == "3313" and plan["target_occupation"]["tasks"]
+    assert {s["code"] for s in plan["needed_skills"]} == {"keuangan", "excel", "analisis", "ai"}
+    assert [p["key"] for p in plan["phases"]] == ["bulan-1", "bulan-2", "bulan-3"]
+    assert plan["phases"][0]["items"][-1] == {
+        "type": "mission", "ref_id": plan["phases"][0]["items"][-1]["ref_id"],
+        "title": "Rapikan data penjualan cabang", "done": False,
+    }
+    r = await client.patch(f"/v1/plans/{plan['id']}", headers=h, json={"direction": "perkuat"})
+    assert r.json()["target_occupation"] is None and r.json()["needed_skills"][0]["code"] == "ai"
+    r = await client.patch(f"/v1/plans/{plan['id']}", headers=h, json={"direction": "pindah"})
+    assert r.json()["target_occupation"]["code"] == "3314"
+    await client.patch(f"/v1/plans/{plan['id']}", headers=h, json={"direction": "naik"})
+    narrative = sse_text(parse_sse((await client.post(f"/v1/plans/{plan['id']}/narrative", headers=h)).text))
+    assert narrative.startswith("Rina, bulan pertama") and "Staf Akuntansi Pelaksana" in narrative
 
-    # L5: kelas -> urut skill gap terbayar lalu harga
-    r = await client.get("/v1/courses/recommendations", headers=h, params={"limit": 50})
-    courses = r.json()["data"]
+    # L5: kelas urut cakupan celah skill lalu harga
+    courses = (await client.get("/v1/courses/recommendations", headers=h, params={"limit": 50})).json()["data"]
     keys = [(-c["gap_covered_count"], c["price"]) for c in courses]
-    assert keys == sorted(keys)
-    assert all(c["gap_covered_count"] > 0 for c in courses)
-    r = await client.get("/v1/courses/recommendations", headers=h, params={"budget": "free"})
-    assert all(c["price"] == 0 for c in r.json()["data"])
-    r = await client.post(f"/v1/courses/{courses[0]['id']}/click", headers=h)
-    assert "utm_source=levelin" in r.json()["redirect_url"]
+    assert keys == sorted(keys) and courses[0]["reason"].startswith("Kelas ini menutup")
+    free = (await client.get("/v1/courses/recommendations", headers=h, params={"budget": "free"})).json()["data"]
+    assert free and all(c["price"] == 0 for c in free)
+    cheap = (await client.get("/v1/courses/recommendations", headers=h, params={"budget": "under_500k", "limit": 50})).json()["data"]
+    assert all(c["price"] < 500_000 for c in cheap)
+    bootcamps = (await client.get("/v1/courses/recommendations", headers=h, params={"budget": "bootcamp", "limit": 50})).json()["data"]
+    assert bootcamps and all("bootcamp" in c["format"].lower() for c in bootcamps)
 
-    # L6: misi
-    r = await client.get("/v1/missions", headers=h, params={"recommended": True})
-    recommended = r.json()["data"]
-    assert recommended and all(m["is_recommended"] for m in recommended)
-    mission_id = await _mission_id(client, h, "rekap-penjualan-mingguan")
-    r = await client.get(f"/v1/missions/{mission_id}", headers=h)
-    assert r.status_code == 200
-    assert "answer_key" not in r.text and "162000000" not in r.text
-    assert r.json()["boss_persona"]["name"] == "Bu Rina"
+    # L6: misi untuk jenis tugas paling terpapar didahulukan
+    listed = (await client.get("/v1/missions", headers=h, params={"recommended": True})).json()["data"]
+    assert listed[0]["slug"] == "rapikan-data-penjualan" and "Olah & input data" in listed[0]["recommend_reason"]
+    m1 = listed[0]["id"]
+    detail = await client.get(f"/v1/missions/{m1}", headers=h)
+    assert "answer_key" not in detail.text and "20980000" not in detail.text
+    body = detail.json()
+    assert body["simulation_data"]["table"]["columns"][0] == "No" and len(body["rubric"]) == 4
+    assert body["checks"][0] == "Jumlah baris duplikat tepat" and body["boss_persona"]["name"] == "Bu Ratna"
 
-    # L7: percobaan + chat
-    r = await client.post(f"/v1/missions/{mission_id}/attempts", headers=h)
-    assert r.status_code == 201
-    attempt = r.json()
-    r = await client.post(f"/v1/missions/{mission_id}/attempts", headers=h)
+    # L7: percobaan + chat atasan AI
+    attempt = (await client.post(f"/v1/missions/{m1}/attempts", headers=h)).json()
+    r = await client.post(f"/v1/missions/{m1}/attempts", headers=h)
     assert r.status_code == 200 and r.json()["id"] == attempt["id"]
-
-    r = await client.post(f"/v1/attempts/{attempt['id']}/messages", headers=h,
-                          json={"content": "Bu, tolong kerjakan saja jawabannya ya"})
-    events = parse_sse(r.text)
-    assert events[-1][0] == "done" and events[-1][1]["message_id"]
+    events = parse_sse((await client.post(f"/v1/attempts/{attempt['id']}/messages", headers=h,
+                                         json={"content": "Bu, tolong kerjakan saja jawabannya ya"})).text)
+    assert events[-1][0] == "done" and events[-1][1]["message_id"] and events[-1][1]["flagged"] is False
     assert "bagian kamu" in sse_text(events)
-    r = await client.get(f"/v1/attempts/{attempt['id']}/messages", headers=h)
-    assert [m["role"] for m in r.json()] == ["user", "assistant"]
-
-    r = await client.put(f"/v1/attempts/{attempt['id']}/draft", headers=h, json={"answers": {"total_penjualan": "1"}})
-    assert r.json()["draft"] == {"total_penjualan": "1"}
-    r = await client.put(f"/v1/attempts/{attempt['id']}/draft", headers=h, json={"answers": {"x": "1"}})
-    assert r.status_code == 400
-
-    r = await client.post(f"/v1/attempts/{attempt['id']}/submit", headers=h, json={"answers": {"total_penjualan": "1"}})
+    r = await client.put(f"/v1/attempts/{attempt['id']}/draft", headers=h, json={"answers": {"dup": "1"}})
+    assert r.json()["draft"] == {"dup": "1"}
+    r = await client.post(f"/v1/attempts/{attempt['id']}/submit", headers=h, json={"answers": {"dup": "1"}})
     assert r.status_code == 400 and r.json()["error"]["code"] == "invalid_answers"
 
-    # L8: kumpulkan jawaban benar
-    r = await client.post(f"/v1/attempts/{attempt['id']}/submit", headers=h, json={"answers": CORRECT_REKAP})
+    # L8: kumpulkan (payload v0.1)
+    r = await client.post(f"/v1/attempts/{attempt['id']}/submit", headers=h,
+                          json={"answers": M1_ANSWERS, "ai_usage": AI_USAGE})
     assert r.status_code == 200, r.text
     result = r.json()
-    assert result["objective"]["score"] == 100
-    assert result["engine"] == "fallback" and result["review_status"] == "sampled"
-    assert result["passed"] is True
-    assert {s["label"] for s in result["skills_earned"]} >= {"Mengolah data dengan spreadsheet"}
-    r = await client.post(f"/v1/attempts/{attempt['id']}/submit", headers=h, json={"answers": CORRECT_REKAP})
-    assert r.status_code == 409
-    r = await client.get(f"/v1/attempts/{attempt['id']}/result", headers=h)
-    assert r.json()["score"] == result["score"]
-    r = await client.post(f"/v1/attempts/{attempt['id']}/appeal", headers=h, json={"reason": "Saya rasa ringkasan saya sudah lengkap."})
-    assert r.status_code == 201
-    r = await client.post(f"/v1/attempts/{attempt['id']}/appeal", headers=h, json={"reason": "Banding kedua kalinya."})
-    assert r.status_code == 409
+    assert result["passed"] is True and all(c["ok"] for c in result["checks"])
+    assert result["checks"][1] == {"label": "Total penjualan Lunas tepat", "ok": True, "hint": None}
+    assert result["rubric"] is None and result["rubric_avg"] is None and result["engine"] == "fallback"
+    assert result["passport_evidence_id"] and result["review_status"] == "sampled"
+    assert result["readiness_score"] > 0
+    assert {s["code"] for s in result["skills_earned"]} == {"excel", "kualitas", "ai"}
+    assert (await client.post(f"/v1/attempts/{attempt['id']}/submit", headers=h,
+                              json={"answers": M1_ANSWERS})).status_code == 409
+    assert (await client.get(f"/v1/attempts/{attempt['id']}/result", headers=h)).json()["passed"] is True
+    assert (await client.post(f"/v1/attempts/{attempt['id']}/appeal", headers=h,
+                              json={"reason": "Mohon ditinjau kualitas ringkasanku."})).status_code == 201
 
-    # Progres rencana ikut naik setelah misi lulus
-    r = await client.get("/v1/plans/current", headers=h)
-    assert r.json()["progress"] > 0
+    # Tugas berjenis "data" sekarang siap penuh -> Skor Kesiapan naik
+    latest = (await client.get("/v1/audits/latest", headers=h)).json()
+    assert latest["summary"]["readiness_score"] == result["readiness_score"]
+    assert latest["summary"]["readiness_score"] > s["readiness_score"]
+    assert (await client.get("/v1/plans/current", headers=h)).json()["progress"] > 0
 
-    # L9: Paspor + link publik
-    r = await client.get("/v1/passport", headers=h)
-    passport = r.json()
+    # L9: Paspor
+    passport = (await client.get("/v1/passport", headers=h)).json()
     assert passport["total_skills"] == 3
-    r = await client.patch("/v1/passport/sharing", headers=h, json={"public_link": True, "share_with_org": True})
-    sharing = r.json()
-    assert sharing["public_url"].endswith(sharing["public_slug"])
-    r = await client.get(f"/v1/public/passports/{sharing['public_slug']}")
-    assert r.status_code == 200 and r.json()["name"] == "Budi S."
-    await client.patch("/v1/passport/sharing", headers=h, json={"public_link": False})
-    r = await client.get(f"/v1/public/passports/{sharing['public_slug']}")
-    assert r.status_code == 404
-    await client.patch("/v1/passport/sharing", headers=h, json={"public_link": True})
+    evidence = passport["skills"][0]["evidence"][0]
+    assert evidence["checks_passed"] == 3 and evidence["checks_total"] == 3
+    assert evidence["excerpt"].startswith("Setelah format nilai")
+    sharing = (await client.patch("/v1/passport/sharing", headers=h,
+                                  json={"public_link": True, "share_with_org": True})).json()
+    public = await client.get(f"/v1/public/passports/{sharing['public_slug']}")
+    assert public.status_code == 200 and public.json()["name"] == "Rina L."
 
-    # L10: lowongan, internal organisasi didahulukan
-    r = await client.get("/v1/jobs/matches", headers=h, params={"limit": 20})
-    jobs = r.json()["data"]
-    assert jobs[0]["is_internal"]
-    internal = [j for j in jobs if j["is_internal"]]
-    assert internal[0]["match_percent"] >= internal[-1]["match_percent"]
-    r = await client.post(f"/v1/jobs/{jobs[0]['id']}/apply", headers=h, json={"cover_note": "Siap belajar."})
+    # L10: lowongan internal dulu; kecocokan = terbukti 1 + dasar 0,5 per skill
+    jobs = (await client.get("/v1/jobs/matches", headers=h, params={"limit": 20})).json()["data"]
+    assert jobs[0]["is_internal"] and jobs[1]["is_internal"]
+    akuntansi = next(j for j in jobs if j["title"] == "Staf Akuntansi Pelaksana")
+    # keuangan (dasar 0,5) + excel (1) + analisis (0) + ai (1) = 2,5 / 4
+    assert akuntansi["match_percent"] == 63
+    assert [s["code"] for s in akuntansi["partial_skills"]] == ["keuangan"]
+    scam = next(j for j in jobs if j["source"] == "tidak")
+    assert scam["source_verified"] is False and "tidak pernah memungut biaya" in scam["warning"]
+    r = await client.post(f"/v1/jobs/{akuntansi['id']}/apply", headers=h, json={"cover_note": "Siap belajar."})
     assert r.status_code == 201 and r.json()["passport_url"]
-    r = await client.post(f"/v1/jobs/{jobs[0]['id']}/apply", headers=h, json={})
-    assert r.status_code == 409
+    assert (await client.post(f"/v1/jobs/{akuntansi['id']}/apply", headers=h, json={})).status_code == 409
+
+
+async def test_m2_email_mission_passes_with_fallback(client):
+    h = auth()
+    await onboard(client, h)
+    mid = await mission_id(client, h, "notulen-jadi-email")
+    attempt = (await client.post(f"/v1/missions/{mid}/attempts", headers=h)).json()
+    answers = {"subjek": "Tindak lanjut rapat koordinasi 12 Oktober", "isi": M2_EMAIL + " Terima kasih semuanya."}
+    result = (await client.post(f"/v1/attempts/{attempt['id']}/submit", headers=h, json={"answers": answers})).json()
+    assert [c["ok"] for c in result["checks"]] == [True, True, True, True]
+    assert result["passed"] is True
+
+
+async def test_short_answer_fails_without_rubric(client):
+    h = auth()
+    await onboard(client, h)
+    mid = await mission_id(client, h, "rapikan-data-penjualan")
+    attempt = (await client.post(f"/v1/missions/{mid}/attempts", headers=h)).json()
+    short = {**M1_ANSWERS, "ringkasan": "Total sudah dihitung."}
+    result = (await client.post(f"/v1/attempts/{attempt['id']}/submit", headers=h, json={"answers": short})).json()
+    assert result["passed"] is False and "Lengkapi bagian tulisan" in result["feedback"]
+    assert result["passport_evidence_id"] is None
 
 
 async def test_free_quota_and_rate_limit(client):
-    # Pengguna tanpa organisasi = paket free (3 misi per bulan)
     h = auth("mandiri@contoh.test", name="Rani Mandiri")
-    await _onboard(client, h)
-    r = await client.get("/v1/missions", headers=h, params={"limit": 50})
-    ids = [m["id"] for m in r.json()["data"]]
-    for mid in ids[:3]:
+    await onboard(client, h)
+    ids = [m["id"] for m in (await client.get("/v1/missions", headers=h)).json()["data"]]
+    first = (await client.post(f"/v1/missions/{ids[0]}/attempts", headers=h)).json()
+    await client.post(f"/v1/attempts/{first['id']}/submit", headers=h, json={"answers": M1_ANSWERS})
+    for mid in (ids[0], ids[1]):
         assert (await client.post(f"/v1/missions/{mid}/attempts", headers=h)).status_code == 201
-    r = await client.post(f"/v1/missions/{ids[3]}/attempts", headers=h)
+    r = await client.post(f"/v1/missions/{ids[2]}/attempts", headers=h)
     assert r.status_code == 429 and r.json()["error"]["code"] == "quota_exceeded"
 
     settings = get_settings()
     original = settings.rate_limit_audit_per_day
     settings.rate_limit_audit_per_day = 1
     try:
-        body = {"occupation_code": "4110", "tasks": [{"template_task_id": 1, "hours_per_week": 5}]}
-        assert (await client.post("/v1/audits", headers=h, json=body)).status_code == 201
-        r = await client.post("/v1/audits", headers=h, json=body)
-        assert r.status_code == 429 and r.json()["error"]["code"] == "rate_limited"
-        assert int(r.headers["retry-after"]) > 0
+        assert (await client.post("/v1/audits", headers=h, json={"template_tasks": TEMPLATE_TASKS})).status_code == 201
+        r = await client.post("/v1/audits", headers=h, json={"template_tasks": TEMPLATE_TASKS})
+        assert r.status_code == 429 and int(r.headers["retry-after"]) > 0
     finally:
         settings.rate_limit_audit_per_day = original
 
 
 async def test_notifications_devices_export_delete(client):
     h = auth()
-    await _onboard(client, h)
-    r = await client.post("/v1/me/device-tokens", headers=h, json={"token": "fcm-token-1234567890", "platform": "android"})
-    assert r.status_code == 201
-    r = await client.delete("/v1/me/device-tokens/fcm-token-1234567890", headers=h)
-    assert r.status_code == 204
+    await onboard(client, h)
+    assert (await client.post("/v1/me/device-tokens", headers=h,
+                              json={"token": "fcm-token-1234567890", "platform": "android"})).status_code == 201
+    assert (await client.delete("/v1/me/device-tokens/fcm-token-1234567890", headers=h)).status_code == 204
     r = await client.get("/v1/notifications", headers=h)
-    assert r.json()["meta"]["total"] == 0 and r.headers["x-unread-count"] == "0"
-
-    await client.post("/v1/audits", headers=h, json={"occupation_code": "4110", "tasks": [{"template_task_id": 1, "hours_per_week": 5}]})
+    assert r.json()["meta"]["total"] == 0 and r.json()["meta"]["limit"] == 20 and r.headers["x-unread-count"] == "0"
+    await create_audit(client, h, story=None)
     r = await client.get("/v1/me/export", headers=h)
-    assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
-    assert len(r.json()["audits"]) == 1
-
+    assert r.status_code == 200 and len(r.json()["audits"]) == 1
     assert (await client.delete("/v1/me", headers=h)).status_code == 204
-    # Token yang sama membuat akun baru yang kosong
-    r = await client.get("/v1/audits", headers=h)
-    assert r.json()["meta"]["total"] == 0
+    assert (await client.get("/v1/audits", headers=h)).json()["meta"]["total"] == 0
 
 
 async def test_health(client):
-    r = await client.get("/health")
-    assert r.status_code == 200
-    body = r.json()
+    body = (await client.get("/health")).json()
     assert body["database"] == "ok" and body["status"] == "degraded" and body["llm"]["configured"] is False

@@ -1,0 +1,503 @@
+{
+ "_note": "Bank misi dari prototipe Tim Hearz. answer_key RAHASIA: hanya dipakai server untuk cek objektif.",
+ "missions": [
+  {
+   "slug": "rapikan-data-penjualan",
+   "title": "Rapikan data penjualan cabang",
+   "summary": "Rapikan data penjualan tiga cabang yang formatnya berantakan, lalu laporkan hasilnya.",
+   "brief": "Data penjualan September dari tiga cabang masuk dengan format berantakan. Rapikan datanya (boleh dengan bantuan AI), lalu laporkan total penjualan yang sudah lunas dan cabang tertinggi. Tulis ringkasan singkat untuk saya.",
+   "boss_persona": {
+    "name": "Bu Ratna",
+    "role": "Kepala Administrasi di PT Sinar Distribusi (perusahaan fiktif)",
+    "style": "wajar seperti atasan di kantor, ramah, dan jelas soal standar hasil"
+   },
+   "simulation_data": {
+    "table": {
+     "columns": [
+      "No",
+      "Tanggal",
+      "Cabang",
+      "Pelanggan",
+      "Nilai",
+      "Status"
+     ],
+     "rows": [
+      [
+       "1",
+       "01/09/2026",
+       "Bekasi",
+       "PT Maju Jaya",
+       "4500000",
+       "Lunas"
+      ],
+      [
+       "2",
+       "2026-09-01",
+       "Bekasi",
+       "PT Maju Jaya",
+       "4.500.000",
+       "lunas"
+      ],
+      [
+       "3",
+       "02-09-2026",
+       "Cikarang",
+       "CV Karya Baru",
+       "Rp2,75 jt",
+       "Belum lunas"
+      ],
+      [
+       "4",
+       "03/09/2026",
+       "Bekasi",
+       "Toko Berkah",
+       "1250000",
+       "Lunas"
+      ],
+      [
+       "5",
+       "03/09/2026",
+       "Karawang",
+       "UD Sinar Abadi",
+       "3.200.000",
+       "Lunas"
+      ],
+      [
+       "6",
+       "04/09/2026",
+       "Cikarang",
+       "PT Sentosa",
+       "5100000",
+       "LUNAS"
+      ],
+      [
+       "7",
+       "05/09/2026",
+       "Karawang",
+       "Toko Makmur",
+       "980000",
+       "Lunas"
+      ],
+      [
+       "8",
+       "",
+       "Bekasi",
+       "CV Mandiri",
+       "2.000.000",
+       "Belum lunas"
+      ],
+      [
+       "9",
+       "06/09/2026",
+       "Karawang",
+       "UD Sinar Abadi",
+       "3200000",
+       "Lunas"
+      ],
+      [
+       "10",
+       "06/09/2026",
+       "Cikarang",
+       "CV Karya Baru",
+       "2750000",
+       "Lunas"
+      ]
+     ]
+    }
+   },
+   "answer_fields": [
+    {
+     "id": "dup",
+     "label": "Berapa baris duplikat yang kamu hapus?",
+     "type": "number"
+    },
+    {
+     "id": "total",
+     "label": "Total penjualan berstatus Lunas (Rp)",
+     "type": "text",
+     "placeholder": "contoh: 12.500.000"
+    },
+    {
+     "id": "top",
+     "label": "Cabang dengan penjualan Lunas tertinggi",
+     "type": "choice",
+     "options": [
+      "Bekasi",
+      "Cikarang",
+      "Karawang"
+     ]
+    },
+    {
+     "id": "ringkasan",
+     "label": "Ringkasan untuk atasan (3–5 kalimat)",
+     "type": "long_text"
+    }
+   ],
+   "answer_key": [
+    {
+     "id": "c1",
+     "field_id": "dup",
+     "type": "number",
+     "expected": 1,
+     "tolerance": 0,
+     "label": "Jumlah baris duplikat tepat",
+     "hint": "Bandingkan baris dengan pelanggan, cabang, dan nilai yang sama tapi format berbeda."
+    },
+    {
+     "id": "c2",
+     "field_id": "total",
+     "type": "number",
+     "expected": 20980000,
+     "tolerance": 0,
+     "label": "Total penjualan Lunas tepat",
+     "hint": "Samakan format nilai dulu, hapus duplikat, lalu jumlahkan yang berstatus Lunas."
+    },
+    {
+     "id": "c3",
+     "field_id": "top",
+     "type": "choice",
+     "expected": "Cikarang",
+     "label": "Cabang tertinggi tepat",
+     "hint": "Bandingkan total Lunas per cabang."
+    }
+   ],
+   "rubric": [
+    {
+     "id": "r1",
+     "criterion": "Ketepatan angka",
+     "weight": 1
+    },
+    {
+     "id": "r2",
+     "criterion": "Kejelasan ringkasan untuk atasan",
+     "weight": 1
+    },
+    {
+     "id": "r3",
+     "criterion": "Menandai data yang perlu dicek (mis. tanggal kosong)",
+     "weight": 1
+    },
+    {
+     "id": "r4",
+     "criterion": "Memakai AI dengan bertanggung jawab (memverifikasi hasil)",
+     "weight": 1
+    }
+   ],
+   "kind": "data",
+   "skills": [
+    "excel",
+    "kualitas",
+    "ai"
+   ],
+   "difficulty": 1,
+   "est_minutes": 40,
+   "duration_label": "30–40 menit",
+   "pass_score": 75
+  },
+  {
+   "slug": "notulen-jadi-email",
+   "title": "Ubah notulen rapat jadi email tindak lanjut",
+   "summary": "Ubah catatan rapat yang masih kasar menjadi email tindak lanjut yang jelas.",
+   "brief": "Ini catatan kasar rapat koordinasi tadi pagi. Tolong ubah jadi email tindak lanjut untuk semua peserta: jelas siapa mengerjakan apa dan kapan tenggatnya. Nadanya profesional dan singkat.",
+   "boss_persona": {
+    "name": "Bu Ratna",
+    "role": "Kepala Administrasi di PT Sinar Distribusi (perusahaan fiktif)",
+    "style": "wajar seperti atasan di kantor, ramah, dan jelas soal standar hasil"
+   },
+   "simulation_data": {
+    "notes": "Rapat koordinasi cabang, Senin 12 Okt 2026, jam 09.00. Hadir: Bu Ratna, Andi (keuangan), Dewi (GA), Rina (admin). Bahas anggaran gathering akhir tahun, revisi belum final krn harga venue naik. Andi revisi anggaran, kirim Rabu 14 Okt. Katering: Dewi konfirmasi ke 2 vendor, paling lambat Jumat 16 Okt. Rina rekap absensi 3 cabang buat dasar jumlah peserta, Senin 19 Okt. Ada usulan ganti venue ke aula kantor, belum diputuskan, dibahas lagi rapat berikut. Rapat selanjutnya Selasa 20 Okt jam 10."
+   },
+   "answer_fields": [
+    {
+     "id": "subjek",
+     "label": "Subjek email",
+     "type": "text",
+     "placeholder": "contoh: Tindak lanjut rapat koordinasi 12 Oktober"
+    },
+    {
+     "id": "isi",
+     "label": "Isi email",
+     "type": "long_text",
+     "rows": 9
+    }
+   ],
+   "answer_key": [
+    {
+     "id": "c1",
+     "field_ids": [
+      "subjek",
+      "isi"
+     ],
+     "field_id": "isi",
+     "type": "regex",
+     "expected": "(?is)^(?=.*andi)(?=.*\\b14\\s*(?:okt|oktober|/10|-10))",
+     "label": "Menyebut tugas Andi dan tenggat 14 Okt",
+     "hint": "Andi: revisi anggaran, Rabu 14 Okt."
+    },
+    {
+     "id": "c2",
+     "field_ids": [
+      "subjek",
+      "isi"
+     ],
+     "field_id": "isi",
+     "type": "regex",
+     "expected": "(?is)^(?=.*dewi)(?=.*\\b16\\s*(?:okt|oktober|/10|-10))",
+     "label": "Menyebut tugas Dewi dan tenggat 16 Okt",
+     "hint": "Dewi: konfirmasi katering, Jumat 16 Okt."
+    },
+    {
+     "id": "c3",
+     "field_ids": [
+      "subjek",
+      "isi"
+     ],
+     "field_id": "isi",
+     "type": "regex",
+     "expected": "(?is)^(?=.*rina)(?=.*\\b19\\s*(?:okt|oktober|/10|-10))",
+     "label": "Menyebut tugas Rina dan tenggat 19 Okt",
+     "hint": "Rina: rekap absensi, Senin 19 Okt."
+    },
+    {
+     "id": "c4",
+     "field_ids": [
+      "subjek",
+      "isi"
+     ],
+     "field_id": "isi",
+     "type": "regex",
+     "expected": "(?is)\\b20\\s*(?:okt|oktober|/10|-10)",
+     "label": "Menyebut jadwal rapat berikutnya (20 Okt)",
+     "hint": "Rapat berikutnya Selasa 20 Okt jam 10."
+    }
+   ],
+   "rubric": [
+    {
+     "id": "r1",
+     "criterion": "Kelengkapan tindak lanjut",
+     "weight": 1
+    },
+    {
+     "id": "r2",
+     "criterion": "Struktur dan keterbacaan",
+     "weight": 1
+    },
+    {
+     "id": "r3",
+     "criterion": "Nada profesional dan ringkas",
+     "weight": 1
+    },
+    {
+     "id": "r4",
+     "criterion": "Tidak menambah fakta yang tidak ada di notulen",
+     "weight": 1
+    }
+   ],
+   "kind": "dok",
+   "skills": [
+    "menulis",
+    "ai",
+    "proyek"
+   ],
+   "difficulty": 1,
+   "est_minutes": 35,
+   "duration_label": "25–35 menit",
+   "pass_score": 75
+  },
+  {
+   "slug": "rekap-absensi-cabang",
+   "title": "Rekap absensi 3 cabang untuk HRD",
+   "summary": "Rekap absensi tiga cabang, tandai yang perlu perhatian, dan tulis catatan faktual untuk HRD.",
+   "brief": "Ini data absensi minggu lalu dari tiga cabang. Rekap totalnya, tandai siapa yang perlu perhatian, dan tulis catatan singkat untuk HRD. Jangan menghakimi karyawan, cukup sajikan faktanya.",
+   "boss_persona": {
+    "name": "Bu Ratna",
+    "role": "Kepala Administrasi di PT Sinar Distribusi (perusahaan fiktif)",
+    "style": "wajar seperti atasan di kantor, ramah, dan jelas soal standar hasil"
+   },
+   "simulation_data": {
+    "table": {
+     "columns": [
+      "Cabang",
+      "Nama",
+      "Hadir",
+      "Izin",
+      "Sakit",
+      "Alpa",
+      "Terlambat"
+     ],
+     "rows": [
+      [
+       "Bekasi",
+       "Sinta",
+       "5",
+       "0",
+       "0",
+       "0",
+       "1"
+      ],
+      [
+       "Bekasi",
+       "Budi",
+       "4",
+       "1",
+       "0",
+       "0",
+       "0"
+      ],
+      [
+       "Bekasi",
+       "Lina",
+       "3",
+       "0",
+       "1",
+       "1",
+       "2"
+      ],
+      [
+       "Cikarang",
+       "Agus",
+       "5",
+       "0",
+       "0",
+       "0",
+       "3"
+      ],
+      [
+       "Cikarang",
+       "Maya",
+       "4",
+       "0",
+       "1",
+       "0",
+       "0"
+      ],
+      [
+       "Cikarang",
+       "Fajar",
+       "2",
+       "0",
+       "0",
+       "3",
+       "1"
+      ],
+      [
+       "Karawang",
+       "Rudi",
+       "5",
+       "0",
+       "0",
+       "0",
+       "0"
+      ],
+      [
+       "Karawang",
+       "Wulan",
+       "5",
+       "0",
+       "0",
+       "0",
+       "1"
+      ],
+      [
+       "Karawang",
+       "Dedi",
+       "4",
+       "1",
+       "0",
+       "0",
+       "2"
+      ]
+     ]
+    }
+   },
+   "answer_fields": [
+    {
+     "id": "telat",
+     "label": "Total kejadian terlambat di ketiga cabang",
+     "type": "number"
+    },
+    {
+     "id": "alpa",
+     "label": "Cabang dengan alpa terbanyak",
+     "type": "choice",
+     "options": [
+      "Bekasi",
+      "Cikarang",
+      "Karawang"
+     ]
+    },
+    {
+     "id": "nama",
+     "label": "Karyawan yang paling perlu perhatian",
+     "type": "text"
+    },
+    {
+     "id": "catatan",
+     "label": "Catatan untuk HRD (3–5 kalimat)",
+     "type": "long_text"
+    }
+   ],
+   "answer_key": [
+    {
+     "id": "c1",
+     "field_id": "telat",
+     "type": "number",
+     "expected": 10,
+     "tolerance": 0,
+     "label": "Total terlambat tepat",
+     "hint": "Jumlahkan kolom Terlambat di semua baris."
+    },
+    {
+     "id": "c2",
+     "field_id": "alpa",
+     "type": "choice",
+     "expected": "Cikarang",
+     "label": "Cabang alpa terbanyak tepat",
+     "hint": "Jumlahkan kolom Alpa per cabang."
+    },
+    {
+     "id": "c3",
+     "field_id": "nama",
+     "type": "contains",
+     "expected": [
+      "fajar"
+     ],
+     "label": "Karyawan yang perlu perhatian tepat",
+     "hint": "Cari karyawan dengan alpa paling banyak."
+    }
+   ],
+   "rubric": [
+    {
+     "id": "r1",
+     "criterion": "Ketepatan rekap",
+     "weight": 1
+    },
+    {
+     "id": "r2",
+     "criterion": "Catatan faktual dan tidak menghakimi",
+     "weight": 1
+    },
+    {
+     "id": "r3",
+     "criterion": "Kejelasan untuk HRD",
+     "weight": 1
+    },
+    {
+     "id": "r4",
+     "criterion": "Memakai AI dengan bertanggung jawab (memverifikasi hasil)",
+     "weight": 1
+    }
+   ],
+   "kind": "hr",
+   "skills": [
+    "sdm",
+    "excel",
+    "kualitas"
+   ],
+   "difficulty": 1,
+   "est_minutes": 30,
+   "duration_label": "30 menit",
+   "pass_score": 75
+  }
+ ]
+}

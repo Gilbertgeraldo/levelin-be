@@ -4,18 +4,16 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-Direction = Literal["upskill", "pivot"]
+Direction = Literal["perkuat", "naik", "pindah"]
 
 
 class PlanCreate(BaseModel):
     audit_id: uuid.UUID
     direction: Direction
-    target_occupation_code: str | None = None
 
 
 class PlanPatch(BaseModel):
-    direction: Direction | None = None
-    target_occupation_code: str | None = None
+    direction: Direction
 
 
 class PlanItem(BaseModel):
@@ -34,9 +32,24 @@ class PlanPhase(BaseModel):
     progress: float
 
 
-class PlanTarget(BaseModel):
+class TargetTask(BaseModel):
+    description: str
+    ilo_score: float
+
+
+class OccupationBrief(BaseModel):
     code: str
-    title: str
+    name: str
+    mean: float | None
+    gradient_label: str
+    tasks: list[TargetTask] | None = None
+
+
+class NeededSkill(BaseModel):
+    id: int
+    code: str | None
+    label: str
+    proven: bool
 
 
 class PlanOut(BaseModel):
@@ -44,10 +57,14 @@ class PlanOut(BaseModel):
     audit_id: uuid.UUID | None
     direction: str
     direction_label: str
-    target_occupation: PlanTarget | None
-    status: str
+    current_occupation: OccupationBrief | None
+    target_occupation: OccupationBrief | None
+    needed_skills: list[NeededSkill]
+    gap_skills: list[NeededSkill]
     skill_gap_ids: list[int]
+    status: str
     phases: list[PlanPhase]
     progress: float
+    readiness_score: int | None
     created_at: datetime
     updated_at: datetime

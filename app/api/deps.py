@@ -28,6 +28,15 @@ async def _hr_admin(user: User = Depends(require_roles("hr_admin"))) -> User:
 HRAdmin = Annotated[User, Depends(_hr_admin)]
 
 
+async def _team_manager(user: User = Depends(require_roles("manager"))) -> User:
+    if user.org_id is None:
+        raise ApiError(403, "no_organization", "Akun atasan belum terhubung ke organisasi.")
+    return user
+
+
+TeamManager = Annotated[User, Depends(_team_manager)]
+
+
 def cache_public(response: Response, seconds: int) -> None:
     response.headers["Cache-Control"] = f"public, max-age={seconds}"
 

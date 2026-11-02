@@ -1,17 +1,19 @@
+import uuid
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile
 from fastapi.responses import Response
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import delete, func, or_, select
 from starlette.datastructures import UploadFile as FormFile
 
 from app.api.deps import DB, HRAdmin, Pagination
 from app.core.config import get_settings
 from app.core.errors import ApiError
+from app.core.openapi import invitation_request_body
 from app.core.pagination import Page, paginate_list, paginate_scalars
 from app.db.base import utcnow
-from app.models import CustomMissionRequest, Invitation, Job, Occupation, Organization, PassportSettings, Skill, User
+from app.models import CustomMissionRequest, Invitation, Job, Occupation, Organization, Skill, TeamMembership, User
 from app.schemas.jobs import JobOut
 from app.schemas.org import (
     CandidateOut,
@@ -20,7 +22,10 @@ from app.schemas.org import (
     InvitationIn,
     InvitationOut,
     InvitationResult,
+    MemberOut,
+    MemberPatch,
     OrgJobIn,
+    OrgRole,
     ProgressReportOut,
 )
 from app.services import org, passport, storage
@@ -32,7 +37,7 @@ MAX_CSV_BYTES = 1024 * 1024
 MAX_INVITES = 500
 
 
-@router.get("/dashboard", response_model=DashboardOut, summary="Ringkasan agregat organisasi (k-anonim)")
+@router.get("/dashboard", response_model=DashboardOut, summary="Ringkasan agregat organisasi (k-anonim, payload v0.1)")
 async def dashboard(db: DB, hr: HRAdmin):
     return await org.dashboard(db, hr.org_id)
 
@@ -40,7 +45,7 @@ async def dashboard(db: DB, hr: HRAdmin):
 @router.get(
     "/candidates",
     response_model=Page[CandidateOut],
-    summary="Kandidat internal: hanya pekerja yang menyalakan 'Bagikan ke HR'",
+    summary="Kandidat internal: hanya pekerja yang menyalakan berbagi Paspor ke HR & atasan",
 )
 async def candidates(
     db: DB,
@@ -49,35 +54,82 @@ async def candidates(
     skill_id: int | None = None,
     department: Annotated[str | None, Query(max_length=120)] = None,
 ):
-    stmt = (
-        select(User, PassportSettings)
-        .join(PassportSettings, PassportSettings.user_id == User.id)
-        .where(User.org_id == hr.org_id, User.role == "worker", PassportSettings.share_with_org.is_(True))
-    )
+    members = await org.org_members(db, hr.org_id)
     if department:
-        stmt = stmt.where(User.department == department)
-    rows = (await db.execute(stmt)).all()
-    out = []
-    for user, sharing in rows:
-        skills = await passport.passport_skills(db, user.id, include_scores=False)
-        refs = [{"id": s["skill"]["id"], "label": s["skill"]["label"]} for s in skills]
-        if skill_id is not None and skill_id not in {r["id"] for r in refs}:
-            continue
-        out.append(
-            {
-                "user_id": user.id,
-                "name": passport.display_name(user, public=False),
-                "email": user.email,
-                "department": user.department,
-                "proven_skills": refs,
-                "skill_count": len(refs),
-                "passport_url": passport.public_url(sharing.public_slug) if sharing.public_link else None,
-                "last_active_at": user.last_active_at,
-            }
-        )
-    out.sort(key=lambda c: (-c["skill_count"], c["name"]))
-    items, meta = paginate_list(out, page)
+        members = [m for m in members if m.department == department]
+    items, meta = paginate_list(await org.candidates(db, members, skill_id=skill_id), page)
     return {"data": items, "meta": meta}
+
+
+@router.get(
+    "/members",
+    response_model=Page[MemberOut],
+    summary="Daftar karyawan (identitas, peran, departemen; tanpa hasil audit)",
+)
+async def members(
+    db: DB,
+    hr: HRAdmin,
+    page: Pagination,
+    role: OrgRole | None = None,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+):
+    stmt = select(User).where(User.org_id == hr.org_id).order_by(User.full_name, User.email)
+    if role:
+        stmt = stmt.where(User.role == role)
+    if q:
+        like = f"%{q.lower()}%"
+        stmt = stmt.where(or_(func.lower(User.full_name).like(like), func.lower(User.email).like(like)))
+    rows, meta = await paginate_scalars(db, stmt, page)
+    managers = await _manager_names(db, [u.id for u in rows])
+    return {"data": [_member_view(u, managers.get(u.id, [])) for u in rows], "meta": meta}
+
+
+async def _manager_names(db, member_ids: list) -> dict:
+    if not member_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(TeamMembership.member_id, User.full_name, User.email)
+            .join(User, User.id == TeamMembership.manager_id)
+            .where(TeamMembership.member_id.in_(member_ids))
+        )
+    ).all()
+    out: dict = {}
+    for member_id, name, email in rows:
+        out.setdefault(member_id, []).append(name or email or "Atasan")
+    return out
+
+
+def _member_view(user: User, manager_names: list[str]) -> dict:
+    return {
+        "user_id": user.id,
+        "name": passport.display_name(user, public=False),
+        "email": user.email,
+        "department": user.department,
+        "role": user.role,
+        "manager_names": manager_names,
+        "last_active_at": user.last_active_at,
+    }
+
+
+@router.patch("/members/{user_id}", response_model=MemberOut, summary="Ubah peran (mis. jadikan atasan tim) atau departemen")
+async def update_member(user_id: uuid.UUID, body: MemberPatch, db: DB, hr: HRAdmin):
+    member = await db.get(User, user_id)
+    if member is None or member.org_id != hr.org_id:
+        raise ApiError(404, "not_found", "Karyawan tidak ditemukan.")
+    if member.id == hr.id and body.role is not None and body.role != hr.role:
+        raise ApiError(400, "own_role", "Tidak bisa mengubah peranmu sendiri.")
+    fields = body.model_fields_set
+    if "role" in fields and body.role:
+        if member.role == "manager" and body.role != "manager":
+            # Atasan yang diturunkan perannya tidak lagi punya tim
+            await db.execute(delete(TeamMembership).where(TeamMembership.manager_id == member.id))
+        member.role = body.role
+    if "department" in fields:
+        member.department = body.department
+    await db.commit()
+    managers = await _manager_names(db, [member.id])
+    return _member_view(member, managers.get(member.id, []))
 
 
 @router.post(
@@ -85,25 +137,7 @@ async def candidates(
     status_code=201,
     response_model=InvitationResult,
     summary="Undang karyawan (JSON berisi email, atau CSV via multipart/form-data)",
-    openapi_extra={
-        "requestBody": {
-            "content": {
-                "application/json": {"schema": InvitationIn.model_json_schema()},
-                "multipart/form-data": {
-                    "schema": {
-                        "type": "object",
-                        "properties": {
-                            "file": {"type": "string", "format": "binary", "description": "CSV kolom email,name,department,role"},
-                            "department": {"type": "string"},
-                            "role": {"type": "string", "enum": ["worker", "hr_admin"]},
-                        },
-                        "required": ["file"],
-                    }
-                },
-            },
-            "required": True,
-        }
-    },
+    openapi_extra=invitation_request_body(InvitationIn, with_role=True),
 )
 async def invite(request: Request, db: DB, hr: HRAdmin):
     content_type = request.headers.get("content-type", "")
@@ -145,7 +179,11 @@ async def list_invitations(
     status: Literal["pending", "accepted", "expired", "revoked"] | None = None,
 ):
     await org.expire_old_invitations(db, hr.org_id)
-    stmt = select(Invitation).where(Invitation.org_id == hr.org_id).order_by(Invitation.created_at.desc())
+    stmt = (
+        select(Invitation)
+        .where(Invitation.org_id == hr.org_id, Invitation.manager_id.is_(None))
+        .order_by(Invitation.created_at.desc())
+    )
     if status:
         stmt = stmt.where(Invitation.status == status)
     rows, meta = await paginate_scalars(db, stmt, page)

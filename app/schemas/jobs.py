@@ -17,6 +17,7 @@ class JobOut(BaseModel):
     is_internal: bool
     source: str
     source_verified: bool
+    warning: str | None
     occupation_code: str | None
     salary_min: int | None
     salary_max: int | None
@@ -28,6 +29,7 @@ class JobOut(BaseModel):
 class JobMatchOut(JobOut):
     match_percent: int
     matched_skills: list[SkillRef]
+    partial_skills: list[SkillRef]
     missing_skills: list[SkillRef]
 
 

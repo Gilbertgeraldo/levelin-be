@@ -1,108 +1,109 @@
-"""Aturan skor Levelin. Semua angka yang dilihat pengguna dihitung di sini, bukan oleh LLM.
+"""Aturan skor Levelin, sama dengan prototipe Tim Hearz. Semua angka dihitung di sini, bukan oleh LLM.
 
-- Skor tugas = skor paparan ILO dari template tugas yang cocok (lookup, bukan tebakan).
-- Kelompok: >= 0,70 "high", >= 0,40 "medium", selain itu "low".
-- Jam dihemat dan Skor Kesiapan memakai konstanta asumsi di bawah; ubah di satu tempat ini.
+- Skor tugas = skor indeks ILO-NASK dari tugas ILO yang cocok (lookup, bukan tebakan).
+- Kelompok: >= 0,70 "auto" (Diotomasi), >= 0,40 "assist" (Dibantu AI), selain itu "human"
+  (Tetap Manusia). Tugas tanpa padanan ILO = "none", kecuali pengguna memilih kelompoknya sendiri.
+- Jam dihemat = jam auto x 0,6 + jam assist x 0,3 (faktor asumsi).
+- Skor Kesiapan = porsi jam terpapar (auto + assist) yang sudah siap: penuh bila misi untuk jenis
+  pekerjaan tugas itu sudah lulus, setengah bila tugas itu sudah dikerjakan dengan bantuan AI.
 """
 
+import math
 from dataclasses import dataclass
 
-HIGH_THRESHOLD = 0.70
-MEDIUM_THRESHOLD = 0.40
+AUTO_THRESHOLD = 0.70
+ASSIST_THRESHOLD = 0.40
 
+GROUPS = ("auto", "assist", "human", "none")
 GROUP_LABELS = {
-    "high": "Bisa banyak dibantu AI",
-    "medium": "AI jadi rekan kerja",
-    "low": "Tetap keunggulan manusia",
+    "auto": "Diotomasi",
+    "assist": "Dibantu AI",
+    "human": "Tetap Manusia",
+    "none": "Belum terpetakan",
 }
+EXPOSED = ("auto", "assist")
 
-# Asumsi porsi jam tugas yang bisa dihemat bila dibantu AI, per kelompok
-SAVING_RATE = {"high": 0.50, "medium": 0.25, "low": 0.0}
+SAVE_FACTOR = {"auto": 0.6, "assist": 0.3}
+READY_WITH_AI = 0.5
 
-# Bobot komponen Skor Kesiapan (total 1,0)
-READINESS_WEIGHTS = {"adoption": 0.5, "human_share": 0.3, "skill_proof": 0.2}
-# Jumlah skill terbukti di Paspor yang dianggap penuh untuk komponen skill_proof
-SKILL_PROOF_TARGET = 5
-
-# Asumsi jam kerja per minggu saat cerita tidak menyebut durasi
-DEFAULT_WEEKLY_HOURS = 40.0
+# Durasi bawaan bila cerita tidak menyebut berapa lama sebuah tugas dikerjakan
+DEFAULT_TASK_HOURS = 2.0
 
 
-def group_for(score: float) -> str:
-    if score >= HIGH_THRESHOLD:
-        return "high"
-    if score >= MEDIUM_THRESHOLD:
-        return "medium"
-    return "low"
+def js_round(x: float) -> int:
+    """Pembulatan setengah ke atas seperti Math.round di prototipe (round() Python membulatkan ke genap)."""
+    return math.floor(x + 0.5)
+
+
+def group_for(score: float | None) -> str:
+    if score is None:
+        return "none"
+    if score >= AUTO_THRESHOLD:
+        return "auto"
+    if score >= ASSIST_THRESHOLD:
+        return "assist"
+    return "human"
+
+
+def effective_group(score: float | None, manual_group: str | None) -> str:
+    """Kelompok dari skor ILO; tugas tanpa padanan memakai pilihan pengguna bila ada."""
+    if score is not None:
+        return group_for(score)
+    return manual_group if manual_group in ("auto", "assist", "human") else "none"
 
 
 @dataclass
 class ScoredTask:
     hours: float
-    score: float
-    uses_ai: bool
-    description: str = ""
-
-    @property
-    def group(self) -> str:
-        return group_for(self.score)
+    group: str
+    uses_ai: bool = False
+    kind: str | None = None
 
 
 def _r(x: float, n: int = 2) -> float:
     return round(x, n)
 
 
-def summarize(tasks: list[ScoredTask], proven_skills: int) -> dict:
-    total_hours = sum(t.hours for t in tasks)
-    exposure = sum(t.hours * t.score for t in tasks) / total_hours if total_hours else 0.0
+def hours_by_group(tasks: list[ScoredTask]) -> dict[str, float]:
+    return {g: _r(sum(t.hours for t in tasks if t.group == g)) for g in GROUPS}
 
-    groups = {}
-    for key, label in GROUP_LABELS.items():
-        members = [t for t in tasks if t.group == key]
-        hours = sum(t.hours for t in members)
-        groups[key] = {
-            "label": label,
-            "task_count": len(members),
-            "hours": _r(hours, 1),
-            "share": _r(hours / total_hours, 3) if total_hours else 0.0,
-        }
 
-    exposed = [t for t in tasks if t.group in ("high", "medium")]
-    exposed_hours = sum(t.hours for t in exposed)
-    adopted_hours = sum(t.hours for t in exposed if t.uses_ai)
-    adoption = adopted_hours / exposed_hours if exposed_hours else 1.0
+def readiness(tasks: list[ScoredTask], passed_kinds: set[str]) -> int:
+    exposed = ready = 0.0
+    for t in tasks:
+        if t.group not in EXPOSED:
+            continue
+        exposed += t.hours
+        if t.kind and t.kind in passed_kinds:
+            ready += t.hours
+        elif t.uses_ai:
+            ready += READY_WITH_AI * t.hours
+    return js_round(100 * ready / exposed) if exposed else 0
 
-    saved_potential = sum(t.hours * SAVING_RATE[t.group] for t in tasks)
-    saved_now = sum(t.hours * SAVING_RATE[t.group] for t in tasks if t.uses_ai)
 
-    skill_proof = min(1.0, proven_skills / SKILL_PROOF_TARGET)
-    components = {
-        "adoption": _r(adoption, 3),
-        "human_share": _r(1 - exposure, 3),
-        "skill_proof": _r(skill_proof, 3),
-    }
-    readiness = round(100 * sum(READINESS_WEIGHTS[k] * v for k, v in components.items()))
+def hours_saved(tasks: list[ScoredTask]) -> float:
+    return _r(sum(t.hours * SAVE_FACTOR.get(t.group, 0) for t in tasks))
 
+
+def summarize(tasks: list[ScoredTask], passed_kinds: set[str]) -> dict:
+    by_group = hours_by_group(tasks)
     return {
-        "total_hours": _r(total_hours, 1),
-        "exposure_index": _r(exposure, 3),
-        "groups": groups,
-        "ai_adoption": _r(adoption, 3),
-        "hours_saved_week": _r(saved_potential, 1),
-        "hours_saved_now": _r(saved_now, 1),
-        "readiness_score": max(0, min(100, readiness)),
-        "readiness_components": components,
-        "readiness_weights": READINESS_WEIGHTS,
-        "thresholds": {"high": HIGH_THRESHOLD, "medium": MEDIUM_THRESHOLD},
+        "readiness_score": readiness(tasks, passed_kinds),
+        "hours_by_group": by_group,
+        "exposed_hours": _r(sum(by_group[g] for g in EXPOSED)),
+        "hours_saved": hours_saved(tasks),
+        "save_factor": dict(SAVE_FACTOR),
     }
 
 
-def fill_missing_hours(hours: list[float | None]) -> list[float]:
-    """Bagi sisa jam mingguan rata ke tugas yang belum punya durasi (min 1 jam, kelipatan 0,5)."""
-    missing = [i for i, h in enumerate(hours) if h is None]
-    if not missing:
-        return [float(h) for h in hours]
-    known = sum(h for h in hours if h is not None)
-    remaining = max(DEFAULT_WEEKLY_HOURS - known, 2.0 * len(missing))
-    each = max(1.0, round(remaining / len(missing) * 2) / 2)
-    return [float(h) if h is not None else each for h in hours]
+def share_by_group(by_group: dict[str, float]) -> dict[str, int]:
+    """Porsi jam (persen bulat) per kelompok auto/assist/human, tanpa "none"."""
+    total = sum(by_group.get(g, 0) for g in ("auto", "assist", "human"))
+    if not total:
+        return {"auto": 0, "assist": 0, "human": 0}
+    raw = {g: 100 * by_group.get(g, 0) / total for g in ("auto", "assist", "human")}
+    shares = {g: int(v) for g, v in raw.items()}
+    # Bagikan sisa pembulatan ke porsi dengan pecahan terbesar supaya totalnya tepat 100
+    for g in sorted(raw, key=lambda g: raw[g] - shares[g], reverse=True)[: 100 - sum(shares.values())]:
+        shares[g] += 1
+    return shares
