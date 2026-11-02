@@ -1,0 +1,179 @@
+{
+  "_note": "DATA DEMO. Skor paparan dan gradien di berkas ini ilustratif untuk demo hacking day, BUKAN angka resmi ILO. Ganti dengan hasil scripts/ingest_ilo.py, ingest_kbji.py, dan ingest_esco.py sebelum dipakai pengguna sungguhan.",
+  "skills": [
+    {"label": "Menulis prompt AI yang efektif", "label_en": "Writing effective AI prompts", "category": "ai"},
+    {"label": "Memverifikasi dan menyunting keluaran AI", "label_en": "Verifying and editing AI output", "category": "ai"},
+    {"label": "Otomasi tugas kantor dengan AI", "label_en": "Automating office tasks with AI", "category": "ai"},
+    {"label": "Etika dan keamanan data saat memakai AI", "label_en": "AI ethics and data safety", "category": "ai"},
+    {"label": "Mengolah data dengan spreadsheet", "label_en": "Spreadsheet data processing", "category": "digital"},
+    {"label": "Visualisasi data dan dashboard", "label_en": "Data visualisation and dashboards", "category": "digital"},
+    {"label": "Manajemen dokumen digital", "label_en": "Digital document management", "category": "digital"},
+    {"label": "Pembukuan dan jurnal akuntansi", "label_en": "Bookkeeping and journal entries", "category": "teknis"},
+    {"label": "Rekonsiliasi bank", "label_en": "Bank reconciliation", "category": "teknis"},
+    {"label": "Pelaporan keuangan dasar", "label_en": "Basic financial reporting", "category": "teknis"},
+    {"label": "Penulisan konten pemasaran", "label_en": "Marketing copywriting", "category": "teknis"},
+    {"label": "Analisis kampanye digital", "label_en": "Digital campaign analysis", "category": "teknis"},
+    {"label": "Riset pasar", "label_en": "Market research", "category": "teknis"},
+    {"label": "Pemrograman", "label_en": "Programming", "category": "teknis"},
+    {"label": "Pengujian perangkat lunak", "label_en": "Software testing", "category": "teknis"},
+    {"label": "Rekrutmen dan seleksi", "label_en": "Recruitment and selection", "category": "teknis"},
+    {"label": "Administrasi SDM", "label_en": "HR administration", "category": "teknis"},
+    {"label": "Penanganan keluhan pelanggan", "label_en": "Customer complaint handling", "category": "teknis"},
+    {"label": "Komunikasi tertulis profesional", "label_en": "Professional written communication", "category": "transversal"},
+    {"label": "Koordinasi dan manajemen waktu", "label_en": "Coordination and time management", "category": "transversal"},
+    {"label": "Pemecahan masalah", "label_en": "Problem solving", "category": "transversal"},
+    {"label": "Negosiasi", "label_en": "Negotiation", "category": "transversal"},
+    {"label": "Empati dan layanan pelanggan", "label_en": "Empathy and customer service", "category": "transversal"}
+  ],
+  "occupations": [
+    {
+      "code": "4110",
+      "isco_code": "4110",
+      "title": "Staf Administrasi Umum",
+      "title_en": "General office clerks",
+      "description": "Mengerjakan tugas administrasi kantor: dokumen, data, arsip, surat-menyurat, dan koordinasi rutin.",
+      "aliases": ["admin kantor", "staf admin", "administrasi", "juru tulis", "admin"],
+      "exposure_gradient": 4,
+      "skills": {
+        "essential": ["Mengolah data dengan spreadsheet", "Manajemen dokumen digital", "Komunikasi tertulis profesional", "Koordinasi dan manajemen waktu"],
+        "optional": ["Visualisasi data dan dashboard", "Pemecahan masalah"]
+      },
+      "tasks": [
+        {"description": "Mengetik, menyunting, dan memformat dokumen serta surat", "ilo_score": 0.82},
+        {"description": "Memasukkan dan memperbarui data di spreadsheet atau sistem", "ilo_score": 0.78},
+        {"description": "Merekap data dan menyusun laporan rutin", "ilo_score": 0.72},
+        {"description": "Mengarsipkan dan mencari kembali dokumen", "ilo_score": 0.66},
+        {"description": "Menjawab email dan pertanyaan rutin", "ilo_score": 0.64},
+        {"description": "Menjadwalkan rapat dan mengatur kalender", "ilo_score": 0.55},
+        {"description": "Mengoordinasikan kebutuhan kantor dengan vendor", "ilo_score": 0.38},
+        {"description": "Menangani tamu dan permintaan mendadak secara langsung", "ilo_score": 0.18}
+      ]
+    },
+    {
+      "code": "4120",
+      "isco_code": "4120",
+      "title": "Sekretaris",
+      "title_en": "Secretaries (general)",
+      "description": "Mendukung pimpinan: korespondensi, notulen, jadwal, dan persiapan rapat.",
+      "aliases": ["sekretaris", "asisten pimpinan", "personal assistant"],
+      "exposure_gradient": 4,
+      "skills": {
+        "essential": ["Komunikasi tertulis profesional", "Koordinasi dan manajemen waktu", "Manajemen dokumen digital", "Mengolah data dengan spreadsheet"],
+        "optional": ["Negosiasi"]
+      },
+      "tasks": [
+        {"description": "Menyusun notulen dan ringkasan rapat", "ilo_score": 0.80},
+        {"description": "Menulis dan membalas korespondensi", "ilo_score": 0.74},
+        {"description": "Menyiapkan bahan presentasi", "ilo_score": 0.62},
+        {"description": "Mengatur jadwal dan perjalanan dinas pimpinan", "ilo_score": 0.56},
+        {"description": "Menyaring telepon dan tamu pimpinan", "ilo_score": 0.26}
+      ]
+    },
+    {
+      "code": "4311",
+      "isco_code": "4311",
+      "title": "Staf Akuntansi dan Pembukuan",
+      "title_en": "Accounting and bookkeeping clerks",
+      "description": "Mencatat transaksi, merekonsiliasi rekening, dan menyiapkan laporan keuangan sederhana.",
+      "aliases": ["staf akunting", "admin keuangan", "bookkeeper", "staf finance"],
+      "exposure_gradient": 4,
+      "skills": {
+        "essential": ["Pembukuan dan jurnal akuntansi", "Rekonsiliasi bank", "Pelaporan keuangan dasar", "Mengolah data dengan spreadsheet"],
+        "optional": ["Pemecahan masalah", "Komunikasi tertulis profesional"]
+      },
+      "tasks": [
+        {"description": "Mencatat transaksi ke jurnal dan buku besar", "ilo_score": 0.80},
+        {"description": "Mencocokkan rekening koran dengan catatan kas (rekonsiliasi bank)", "ilo_score": 0.74},
+        {"description": "Memproses tagihan dan faktur pemasok", "ilo_score": 0.70},
+        {"description": "Menyusun laporan keuangan bulanan sederhana", "ilo_score": 0.62},
+        {"description": "Menghitung dan memeriksa penggajian", "ilo_score": 0.58},
+        {"description": "Menelusuri selisih dan kesalahan pencatatan", "ilo_score": 0.42},
+        {"description": "Berkomunikasi dengan pemasok soal pembayaran tertunda", "ilo_score": 0.30}
+      ]
+    },
+    {
+      "code": "4222",
+      "isco_code": "4222",
+      "title": "Petugas Layanan Pelanggan (Contact Center)",
+      "title_en": "Contact centre information clerks",
+      "description": "Melayani pertanyaan dan keluhan pelanggan lewat telepon, chat, dan email.",
+      "aliases": ["customer service", "CS", "call center", "layanan pelanggan"],
+      "exposure_gradient": 3,
+      "skills": {
+        "essential": ["Penanganan keluhan pelanggan", "Empati dan layanan pelanggan", "Komunikasi tertulis profesional", "Pemecahan masalah"],
+        "optional": ["Mengolah data dengan spreadsheet"]
+      },
+      "tasks": [
+        {"description": "Menjawab pertanyaan pelanggan lewat chat dan email", "ilo_score": 0.76},
+        {"description": "Mencatat keluhan ke sistem tiket", "ilo_score": 0.72},
+        {"description": "Mencari informasi produk untuk pelanggan", "ilo_score": 0.68},
+        {"description": "Menyusun ringkasan percakapan dan laporan harian", "ilo_score": 0.66},
+        {"description": "Meneruskan kasus rumit ke tim terkait", "ilo_score": 0.40},
+        {"description": "Menenangkan pelanggan yang marah atau kecewa", "ilo_score": 0.24}
+      ]
+    },
+    {
+      "code": "2431",
+      "isco_code": "2431",
+      "title": "Spesialis Pemasaran",
+      "title_en": "Advertising and marketing professionals",
+      "description": "Merancang dan menjalankan kampanye pemasaran serta menganalisis hasilnya.",
+      "aliases": ["marketing", "digital marketing", "staf pemasaran", "social media specialist"],
+      "exposure_gradient": 2,
+      "skills": {
+        "essential": ["Penulisan konten pemasaran", "Analisis kampanye digital", "Riset pasar", "Visualisasi data dan dashboard"],
+        "optional": ["Negosiasi", "Komunikasi tertulis profesional"]
+      },
+      "tasks": [
+        {"description": "Menulis draf konten media sosial dan iklan", "ilo_score": 0.68},
+        {"description": "Menganalisis data kampanye dan performa iklan", "ilo_score": 0.56},
+        {"description": "Melakukan riset pasar dan kompetitor", "ilo_score": 0.52},
+        {"description": "Menyusun strategi dan rencana kampanye", "ilo_score": 0.36},
+        {"description": "Mempresentasikan ide kepada klien atau atasan", "ilo_score": 0.28},
+        {"description": "Bernegosiasi dengan mitra dan agensi", "ilo_score": 0.22}
+      ]
+    },
+    {
+      "code": "2423",
+      "isco_code": "2423",
+      "title": "Spesialis SDM dan Rekrutmen",
+      "title_en": "Personnel and careers professionals",
+      "description": "Merekrut, mengelola administrasi karyawan, dan mengembangkan program SDM.",
+      "aliases": ["HR", "HRD", "recruiter", "staf personalia", "talent acquisition"],
+      "exposure_gradient": 2,
+      "skills": {
+        "essential": ["Rekrutmen dan seleksi", "Administrasi SDM", "Komunikasi tertulis profesional", "Negosiasi", "Mengolah data dengan spreadsheet"],
+        "optional": ["Empati dan layanan pelanggan"]
+      },
+      "tasks": [
+        {"description": "Menulis deskripsi pekerjaan dan iklan lowongan", "ilo_score": 0.70},
+        {"description": "Menyaring CV dan lamaran kerja", "ilo_score": 0.64},
+        {"description": "Menyusun laporan data karyawan", "ilo_score": 0.62},
+        {"description": "Merancang program pelatihan", "ilo_score": 0.38},
+        {"description": "Mewawancarai kandidat", "ilo_score": 0.22},
+        {"description": "Menangani konflik dan konseling karyawan", "ilo_score": 0.14}
+      ]
+    },
+    {
+      "code": "2512",
+      "isco_code": "2512",
+      "title": "Pengembang Perangkat Lunak",
+      "title_en": "Software developers",
+      "description": "Merancang, menulis, menguji, dan memelihara perangkat lunak.",
+      "aliases": ["programmer", "software engineer", "developer", "web developer"],
+      "exposure_gradient": 2,
+      "skills": {
+        "essential": ["Pemrograman", "Pengujian perangkat lunak", "Pemecahan masalah", "Komunikasi tertulis profesional"],
+        "optional": ["Otomasi tugas kantor dengan AI"]
+      },
+      "tasks": [
+        {"description": "Menulis dokumentasi teknis", "ilo_score": 0.66},
+        {"description": "Menulis kode untuk fitur baru", "ilo_score": 0.58},
+        {"description": "Membuat dan menjalankan pengujian perangkat lunak", "ilo_score": 0.55},
+        {"description": "Memperbaiki bug dan menelusuri penyebab error", "ilo_score": 0.46},
+        {"description": "Merancang arsitektur sistem", "ilo_score": 0.32},
+        {"description": "Berdiskusi kebutuhan dengan pengguna dan tim produk", "ilo_score": 0.20}
+      ]
+    }
+  ]
+}

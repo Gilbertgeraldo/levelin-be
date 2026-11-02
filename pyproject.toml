@@ -1,7 +1,28 @@
 [project]
 name = "levelin-be"
-version = "0.1.0"
+version = "0.2.0"
+description = "Backend Levelin: audit tugas AI, rencana naik level, misi, Paspor Skill, dan dashboard HR"
+readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "aiosqlite>=0.22.1",
+    "alembic>=1.20.1",
+    "anthropic>=2.1.0",
+    "asyncpg>=0.32.0",
     "fastapi[standard]>=0.159.1",
+    "google-genai>=2.34.0",
+    "groq>=1.7.0",
+    "pgvector>=0.5.1",
+    "pydantic-settings>=2.16.1",
+    "pyjwt[crypto]>=2.15.1",
+    "sqlalchemy[asyncio]>=2.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
