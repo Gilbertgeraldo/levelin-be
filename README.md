@@ -125,6 +125,93 @@ Rate limit dan kepemilikan dicek sebelum stream dibuka. Karena memakai POST, gun
 Endpoint daftar menerima `?page=&limit=` (maks 100) dan membalas `{"data": [...], "meta": {page, limit, total,
 total_pages, has_next}}`. Data referensi (`/v1/occupations*`, `/v1/skills`) mengirim `Cache-Control: public, max-age=3600`.
 
+## Fase 5: AI Skill Coach dan generator misi
+
+Semua endpoint berikut memerlukan JWT. Dua endpoint coach tersedia untuk pekerja; generator misi hanya untuk
+`reviewer`. Endpoint coach dan evaluasi mengembalikan `engine` (`llm` atau `fallback`) dan tidak menggunakan
+kuota misi.
+
+### `POST /v1/skills/{skill_id}/coach`
+
+Membuat panduan praktik kerja sekitar 3 menit untuk skill, template prompt AI, dan latihan mikro. Tidak memerlukan
+body request.
+
+```http
+POST /v1/skills/12/coach
+Authorization: Bearer <token>
+```
+
+```json
+{
+  "skill": {"id": 12, "label": "Analisis data"},
+  "category": "digital",
+  "engine": "llm",
+  "overview": "Gunakan data untuk menemukan pola dan menyusun rekomendasi.",
+  "key_steps": ["Tentukan pertanyaan", "Periksa kualitas data", "Sampaikan temuan"],
+  "prompt_templates": [{"title": "Cari pola", "when_to_use": "Saat meninjau laporan", "prompt": "Ringkas pola utama dari data berikut: ..."}],
+  "micro_drill": {"scenario": "...", "question": "...", "evaluation_criteria": ["Akurasi"], "hint": "Periksa angka pembanding."},
+  "related_missions": []
+}
+```
+
+### `POST /v1/skills/{skill_id}/drill-check`
+
+Menilai jawaban latihan mikro secara instan. Kirim skenario, pertanyaan, dan jawaban; hasil memberi skor, umpan
+balik, kekuatan, hal yang perlu ditingkatkan, dan contoh jawaban. Evaluasi ini tidak memotong kuota misi.
+
+```http
+POST /v1/skills/12/drill-check
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{"scenario":"Laporan penjualan naik 8% bulan ini.","question":"Apa yang perlu diperiksa sebelum menyimpulkan?","answer":"Saya akan membandingkan periode sebelumnya dan memeriksa sumber datanya."}
+```
+
+```json
+{
+  "skill_id": 12,
+  "score": 85,
+  "ready_for_mission": true,
+  "feedback": "Jawaban sudah menyebut pembanding dan validasi data.",
+  "strengths": ["Memeriksa sumber data"],
+  "improvements": ["Sebutkan rentang periode pembanding"],
+  "model_answer": "Bandingkan dengan periode sebelumnya dan validasi sumber serta cakupan data.",
+  "engine": "llm"
+}
+```
+
+### `POST /v1/admin/missions/generate`
+
+Membuat **draf** simulasi kerja dari judul dan SOP perusahaan atau deskripsi topik. Endpoint ini khusus untuk
+`reviewer`; respons berisi skenario, data simulasi, rubrik, dan kunci jawaban untuk ditinjau sebelum misi dimasukkan
+ke bank misi.
+
+```http
+POST /v1/admin/missions/generate
+Authorization: Bearer <token-reviewer>
+Content-Type: application/json
+
+{"title":"Menangani retur barang","description":"SOP: verifikasi bukti pembelian, kondisi barang, dan batas waktu retur.","target_role":"Staf layanan pelanggan","kind":"simulasi","difficulty":2}
+```
+
+```json
+{
+  "slug": "menangani-retur-barang",
+  "title": "Menangani retur barang",
+  "summary": "Verifikasi permintaan retur berdasarkan SOP.",
+  "brief": "...",
+  "simulation_data": {"permintaan_retur": "..."},
+  "answer_fields": [{"name": "keputusan", "label": "Keputusan retur"}],
+  "rubric": [{"criterion": "Mengikuti SOP", "weight": 1}],
+  "answer_key": [{"field": "keputusan", "expected": "..."}],
+  "skill_ids": [12],
+  "kind": "simulasi",
+  "difficulty": 2,
+  "est_minutes": 10,
+  "engine": "llm"
+}
+```
+
 ## Tugas terjadwal
 
 `uv run python -m scripts.send_reminders` (harian): pengingat cek ulang Peta Tugas setiap `REMINDER_DAYS` hari
