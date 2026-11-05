@@ -16,6 +16,7 @@ os.environ.update(
         "SUPABASE_SERVICE_ROLE_KEY": "",
         "FCM_SERVICE_ACCOUNT_FILE": "",
         "REVIEW_SAMPLE_RATE": "0",
+        "DEV_LOGIN_ENABLED": "false",
         "CORS_ORIGINS": "*",
         "UPLOAD_DIR": tempfile.mkdtemp(prefix="levelin-uploads-"),
     }

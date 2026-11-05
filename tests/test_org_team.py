@@ -103,7 +103,14 @@ async def test_candidates_members_and_invitations(client, sessionmaker):
 
     members = (await client.get("/v1/org/members", headers=h)).json()["data"]
     rina = next(m for m in members if m["email"] == "rina@sinar-distribusi.test")
-    assert set(rina) == {"user_id", "name", "email", "department", "role", "manager_names", "last_active_at"}
+    assert set(rina) == {"user_id", "name", "email", "department", "role", "manager_names", "last_active_at", "is_online"}
+    assert rina["is_online"] is True
+    await client.post("/v1/me/presence", headers=worker, json={"online": False})
+    rina_off = next(m for m in (await client.get("/v1/org/members", headers=h)).json()["data"] if m["user_id"] == rina["user_id"])
+    assert rina_off["is_online"] is False
+    await client.post("/v1/me/presence", headers=worker, json={"online": True})
+    rina_on = next(m for m in (await client.get("/v1/org/members", headers=h)).json()["data"] if m["user_id"] == rina["user_id"])
+    assert rina_on["is_online"] is True
     r = await client.patch(f"/v1/org/members/{rina['user_id']}", headers=h, json={"role": "manager"})
     assert r.json()["role"] == "manager"
     me = next(m for m in members if m["email"] == HR_EMAIL)

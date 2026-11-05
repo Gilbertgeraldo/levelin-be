@@ -37,6 +37,11 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 INVITE_DAYS = 14
 EMPLOYEE_ROLES = ("worker", "manager")
 TREND_MONTHS = 3
+ONLINE_WINDOW = timedelta(seconds=60)
+
+
+def is_online(last_active_at) -> bool:
+    return last_active_at is not None and (utcnow() - last_active_at) <= ONLINE_WINDOW
 
 
 def _k() -> int:

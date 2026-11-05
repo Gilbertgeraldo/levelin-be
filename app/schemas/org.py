@@ -80,6 +80,7 @@ class MemberOut(BaseModel):
     role: str
     manager_names: list[str]
     last_active_at: datetime | None
+    is_online: bool = False
 
 
 class MemberPatch(BaseModel):

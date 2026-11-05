@@ -120,7 +120,7 @@ async def get_current_user(
         user.email = claims.email.lower()
         changed = True
     now = utcnow()
-    if user.last_active_at is None or now - user.last_active_at > timedelta(minutes=30):
+    if user.last_active_at is None or now - user.last_active_at > timedelta(seconds=20):
         user.last_active_at = now
         changed = True
     if changed:

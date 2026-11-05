@@ -109,6 +109,7 @@ def _member_view(user: User, manager_names: list[str]) -> dict:
         "role": user.role,
         "manager_names": manager_names,
         "last_active_at": user.last_active_at,
+        "is_online": org.is_online(user.last_active_at),
     }
 
 

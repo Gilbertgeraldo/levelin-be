@@ -46,6 +46,10 @@ class TeamRef(BaseModel):
     manager_name: str
 
 
+class PresenceIn(BaseModel):
+    online: bool = True
+
+
 class MeOut(BaseModel):
     id: uuid.UUID
     email: str | None
