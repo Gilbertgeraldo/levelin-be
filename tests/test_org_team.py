@@ -234,6 +234,65 @@ async def test_phase4_reviewer_mission_studio_ats_and_mobile_bridge(client):
     assert unread_after == []
 
 
+async def test_phase5_skill_coach_micro_drill_and_sop_mission_generator(client):
+    worker = auth()
+    reviewer = auth(**REVIEWER)
+    await onboard(client, worker)
+
+    before_quota = (await client.get("/v1/me", headers=worker)).json()["subscription"]["remaining"]
+
+    # 1. AI Skill Coach (/v1/skills/1/coach)
+    coach_res = await client.post("/v1/skills/1/coach", headers=worker)
+    assert coach_res.status_code == 200
+    coach = coach_res.json()
+    assert coach["skill"]["id"] == 1
+    assert len(coach["key_steps"]) >= 3
+    assert len(coach["prompt_templates"]) >= 2
+    assert "scenario" in coach["micro_drill"] and "question" in coach["micro_drill"]
+
+    # 2. Evaluasi Micro-Drill (/v1/skills/1/drill-check) tanpa memotong kuota misi
+    drill_res = await client.post(
+        "/v1/skills/1/drill-check",
+        headers=worker,
+        json={
+            "scenario": coach["micro_drill"]["scenario"],
+            "question": coach["micro_drill"]["question"],
+            "answer": (
+                "Saya akan melakukan verifikasi silang terhadap data laporan utama sesuai SOP perusahaan, "
+                "menggunakan prompt AI untuk memetakan anomali dan memeriksa ulang akurasi angkanya, "
+                "lalu menyampaikan rekomendasi solusi prioritas beserta mitigasi risiko kepada atasan."
+            ),
+        },
+    )
+    assert drill_res.status_code == 200
+    drill = drill_res.json()
+    assert drill["skill_id"] == 1
+    assert drill["score"] >= 70 and drill["ready_for_mission"] is True
+    assert len(drill["strengths"]) >= 1 and len(drill["model_answer"]) >= 20
+
+    after_quota = (await client.get("/v1/me", headers=worker)).json()["subscription"]["remaining"]
+    assert after_quota == before_quota  # Kuota misi tetap utuh!
+
+    # 3. AI Corporate SOP-to-Mission Generator (/v1/admin/missions/generate)
+    gen_res = await client.post(
+        "/v1/admin/missions/generate",
+        headers=reviewer,
+        json={
+            "title": "SOP Audit Kepatuhan Gudang & Inventaris",
+            "description": "Pemeriksaan selisih stok barang masuk/keluar dan eskalasi barang rusak maksimal 2x24 jam.",
+            "target_role": "Supervisor Logistik",
+            "difficulty": 2,
+        },
+    )
+    assert gen_res.status_code == 200
+    gen = gen_res.json()
+    assert gen["slug"].startswith("sop-audit-kepatuhan-gudang")
+    assert len(gen["simulation_data"]["headers"]) >= 3
+    assert len(gen["simulation_data"]["rows"]) >= 2
+    assert len(gen["answer_fields"]) >= 2
+    assert len(gen["rubric"]) >= 2
+
+
 async def test_manager_invites_team_and_sees_only_aggregates(client, sessionmaker):
     m = auth(**MANAGER)
     me = (await client.get("/v1/me", headers=m)).json()

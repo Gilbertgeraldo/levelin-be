@@ -4,9 +4,10 @@ from typing import Literal
 from fastapi import APIRouter, Response
 from sqlalchemy import select
 
-from app.api.deps import DB, Pagination, Reviewer
+from app.api.deps import DB, LLM, Pagination, Reviewer
 from app.core.errors import ApiError, not_found
 from app.core.pagination import Page, paginate_scalars
+from app.core.ratelimit import begin_ai_call, finish_ai_call
 from app.db.base import utcnow
 from app.ingest import apply_mission_payload
 from app.models import Attempt, CustomMissionRequest, Mission, Organization, Review, Skill
@@ -14,11 +15,14 @@ from app.schemas.admin import (
     CustomMissionAdminOut,
     MissionAdminIn,
     MissionAdminOut,
+    MissionGenerateIn,
+    MissionGenerateOut,
     ReviewDecisionIn,
     ReviewOut,
 )
-from app.services import missions as mission_service
+from app.services import coaching, missions as mission_service
 from app.services.audits import refresh_readiness
+from app.services.llm import LLMCallInfo
 from app.services.notifications import notify
 
 router = APIRouter(prefix="/admin", tags=["Internal tim (reviewer)"])
@@ -264,6 +268,20 @@ async def list_missions_admin(
         stmt = stmt.where(Mission.is_published.is_(is_published))
     rows, meta = await paginate_scalars(db, stmt, page)
     return {"data": [mission_admin_view(m) for m in rows], "meta": meta}
+
+
+@router.post(
+    "/missions/generate",
+    response_model=MissionGenerateOut,
+    summary="AI SOP-to-Mission Generator: susun draf skenario, tabel simulasi, dan rubrik misi otomatis dari topik/SOP perusahaan",
+)
+async def generate_mission_admin(body: MissionGenerateIn, db: DB, reviewer: Reviewer, llm: LLM):
+    usage = await begin_ai_call(db, reviewer.id, "coach")
+    info = LLMCallInfo()
+    result = await coaching.generate_mission_draft(db, body, llm, info)
+    finish_ai_call(usage, result["engine"], info)
+    await db.commit()
+    return result
 
 
 @router.post(

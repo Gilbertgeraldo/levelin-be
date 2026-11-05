@@ -176,3 +176,33 @@ class CustomMissionAdminOut(BaseModel):
     status: str
     mission_id: uuid.UUID | None
     created_at: datetime
+
+
+class MissionGenerateIn(BaseModel):
+    title: str = Field(min_length=3, max_length=255)
+    description: str = Field(default="", max_length=4000)
+    target_role: str | None = Field(None, max_length=120)
+    kind: str | None = Field(None, max_length=16)
+    difficulty: int = Field(2, ge=1, le=3)
+    custom_request_id: uuid.UUID | None = None
+
+
+class MissionGenerateOut(BaseModel):
+    slug: str
+    title: str
+    summary: str
+    brief: str
+    boss_persona: dict
+    simulation_data: dict
+    answer_fields: list[dict]
+    rubric: list[dict]
+    answer_key: list[dict]
+    skill_ids: list[int]
+    skills: list[SkillRef]
+    kind: str | None
+    difficulty: int
+    est_minutes: int
+    duration_label: str
+    pass_score: int
+    objective_weight: float
+    engine: str

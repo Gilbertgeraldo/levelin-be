@@ -1,3 +1,4 @@
+import uuid
 from pydantic import BaseModel, Field
 
 from app.schemas.common import SkillRef
@@ -50,3 +51,51 @@ class NextRoleOut(BaseModel):
     occupation: OccupationOut
     similarity: float | None
     skills_to_learn: list[SkillRef]
+
+
+class SkillPromptTemplate(BaseModel):
+    title: str
+    when_to_use: str
+    prompt: str
+
+
+class SkillMicroDrill(BaseModel):
+    scenario: str
+    question: str
+    evaluation_criteria: list[str]
+    hint: str
+
+
+class RelatedMissionSummary(BaseModel):
+    id: uuid.UUID
+    slug: str
+    title: str
+    est_minutes: int
+
+
+class SkillCoachOut(BaseModel):
+    skill: SkillRef
+    category: str
+    engine: str
+    overview: str
+    key_steps: list[str]
+    prompt_templates: list[SkillPromptTemplate]
+    micro_drill: SkillMicroDrill
+    related_missions: list[RelatedMissionSummary] = []
+
+
+class SkillDrillCheckIn(BaseModel):
+    scenario: str = Field(min_length=5, max_length=3000)
+    question: str = Field(min_length=5, max_length=1000)
+    answer: str = Field(min_length=10, max_length=4000)
+
+
+class SkillDrillCheckOut(BaseModel):
+    skill_id: int
+    score: int = Field(ge=0, le=100)
+    ready_for_mission: bool
+    feedback: str
+    strengths: list[str]
+    improvements: list[str]
+    model_answer: str
+    engine: str

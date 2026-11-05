@@ -23,6 +23,7 @@ def _limits() -> dict[str, tuple[int, int]]:
         "narrative": (s.rate_limit_narrative_per_hour, HOUR),
         "chat": (s.rate_limit_chat_per_hour, HOUR),
         "grade": (s.rate_limit_grade_per_day, DAY),
+        "coach": (s.rate_limit_chat_per_hour, HOUR),
     }
 
 
