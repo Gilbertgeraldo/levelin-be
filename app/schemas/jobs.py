@@ -24,6 +24,7 @@ class JobOut(BaseModel):
     posted_at: datetime
     expires_at: datetime | None
     skills: list[SkillRef]
+    applicant_count: int = 0
 
 
 class JobMatchOut(JobOut):

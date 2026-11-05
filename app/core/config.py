@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # Dipisah koma, mis. "https://hr.levelin.id,http://localhost:3000"
     cors_origins: str = "*"
     # Basis URL front-end untuk tautan Paspor publik: {base}/{slug}
-    passport_public_base_url: str = "https://levelin.id/p"
+    passport_public_base_url: str = "https://levelin-manager.vercel.app/p"
 
     # Database. Supabase memberi "postgresql://..."; URL dinormalisasi ke driver asyncpg.
     database_url: str = "sqlite+aiosqlite:///./levelin.db"

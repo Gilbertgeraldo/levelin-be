@@ -9,11 +9,11 @@ from starlette.datastructures import UploadFile as FormFile
 
 from app.api.deps import DB, HRAdmin, Pagination
 from app.core.config import get_settings
-from app.core.errors import ApiError
+from app.core.errors import ApiError, not_found
 from app.core.openapi import invitation_request_body
 from app.core.pagination import Page, paginate_list, paginate_scalars
 from app.db.base import utcnow
-from app.models import CustomMissionRequest, Invitation, Job, Occupation, Organization, Skill, TeamMembership, User
+from app.models import CustomMissionRequest, Invitation, Job, JobApplication, Occupation, Organization, PassportSettings, Skill, TeamMembership, User
 from app.schemas.jobs import JobOut
 from app.schemas.org import (
     CandidateOut,
@@ -22,6 +22,7 @@ from app.schemas.org import (
     InvitationIn,
     InvitationOut,
     InvitationResult,
+    JobApplicantOut,
     MemberOut,
     MemberPatch,
     OrgJobIn,
@@ -226,6 +227,18 @@ async def order_custom_mission(
     return request
 
 
+@router.delete("/invitations/{invitation_id}", status_code=204, summary="Batalkan undangan organisasi yang belum diterima")
+async def revoke_org_invitation(invitation_id: uuid.UUID, db: DB, hr: HRAdmin):
+    invitation = await db.get(Invitation, invitation_id)
+    if invitation is None or invitation.org_id != hr.org_id or invitation.manager_id is not None:
+        raise not_found("Undangan")
+    if invitation.status != "pending":
+        raise ApiError(409, "not_pending", "Undangan ini sudah tidak menunggu.")
+    invitation.status = "revoked"
+    await db.commit()
+    return Response(status_code=204)
+
+
 @router.get("/custom-missions", response_model=Page[CustomMissionOut], summary="Daftar pesanan misi kustom")
 async def list_custom_missions(db: DB, hr: HRAdmin, page: Pagination):
     stmt = (
@@ -282,7 +295,46 @@ async def create_job(body: OrgJobIn, db: DB, hr: HRAdmin):
 async def list_jobs(db: DB, hr: HRAdmin, page: Pagination):
     stmt = select(Job).where(Job.org_id == hr.org_id).order_by(Job.posted_at.desc())
     rows, meta = await paginate_scalars(db, stmt, page)
-    return {"data": [job_view(j) for j in rows], "meta": meta}
+    counts = dict(
+        (
+            await db.execute(
+                select(JobApplication.job_id, func.count(JobApplication.id))
+                .where(JobApplication.job_id.in_([j.id for j in rows]))
+                .group_by(JobApplication.job_id)
+            )
+        ).all()
+    ) if rows else {}
+    return {"data": [{**job_view(j), "applicant_count": counts.get(j.id, 0)} for j in rows], "meta": meta}
+
+
+@router.get("/jobs/{job_id}/applications", response_model=list[JobApplicantOut], summary="Daftar pelamar lowongan internal")
+async def list_job_applications(job_id: uuid.UUID, db: DB, hr: HRAdmin):
+    job = await db.get(Job, job_id)
+    if job is None or job.org_id != hr.org_id:
+        raise not_found("Lowongan")
+    rows = (
+        await db.execute(
+            select(JobApplication, User, PassportSettings)
+            .join(User, User.id == JobApplication.user_id)
+            .outerjoin(PassportSettings, PassportSettings.user_id == User.id)
+            .where(JobApplication.job_id == job_id)
+            .order_by(JobApplication.created_at.desc())
+        )
+    ).all()
+    return [
+        {
+            "id": app.id,
+            "user_id": u.id,
+            "name": passport.display_name(u, public=False),
+            "email": u.email,
+            "department": u.department,
+            "cover_note": app.cover_note,
+            "passport_url": (passport.public_url(ps.public_slug) if ps and ps.public_link else app.passport_url),
+            "status": app.status,
+            "created_at": app.created_at,
+        }
+        for app, u, ps in rows
+    ]
 
 
 @router.get(

@@ -135,6 +135,16 @@ async def test_candidates_members_and_invitations(client, sessionmaker):
     assert r.status_code == 415
     r = await client.post("/v1/org/jobs", headers=h, json={"title": "Analis Data Internal", "skill_ids": [1]})
     assert r.status_code == 201 and r.json()["is_internal"] and r.json()["source"] == "internal"
+    job_id = r.json()["id"]
+    await client.post(f"/v1/jobs/{job_id}/apply", headers=worker, json={"cover_note": "Siap bergabung"})
+    org_jobs = (await client.get("/v1/org/jobs", headers=h)).json()["data"]
+    assert next(j for j in org_jobs if j["id"] == job_id)["applicant_count"] == 1
+    apps = (await client.get(f"/v1/org/jobs/{job_id}/applications", headers=h)).json()
+    assert len(apps) == 1 and apps[0]["name"] == "Rina Lestari" and apps[0]["cover_note"] == "Siap bergabung"
+
+    pending_org = (await client.get("/v1/org/invitations", headers=h, params={"status": "pending"})).json()["data"]
+    inv_a = next(i for i in pending_org if i["email"] == "a@uji.test")
+    assert (await client.delete(f"/v1/org/invitations/{inv_a['id']}", headers=h)).status_code == 204
 
 
 async def test_manager_invites_team_and_sees_only_aggregates(client, sessionmaker):

@@ -146,6 +146,18 @@ class CustomMissionOut(BaseModel):
     created_at: datetime
 
 
+class JobApplicantOut(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    name: str
+    email: str | None
+    department: str | None
+    cover_note: str | None
+    passport_url: str | None
+    status: str
+    created_at: datetime
+
+
 class OrgJobIn(BaseModel):
     title: str = Field(min_length=3, max_length=255)
     description: str | None = Field(None, max_length=10_000)
