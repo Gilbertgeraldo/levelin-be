@@ -17,6 +17,8 @@ class Settings(BaseSettings):
 
     # Database. Supabase memberi "postgresql://..."; URL dinormalisasi ke driver asyncpg.
     database_url: str = "sqlite+aiosqlite:///./levelin.db"
+    # Opsional: session pooler (port 5432) untuk migrasi & skrip sinkronisasi berat.
+    sync_database_url: str | None = None
     # True bila memakai pooler Supabase mode transaksi (port 6543 / pgbouncer).
     db_pgbouncer: bool = False
     db_echo: bool = False
@@ -105,6 +107,19 @@ class Settings(BaseSettings):
     @property
     def is_postgres(self) -> bool:
         return self.async_database_url.startswith("postgresql")
+
+    @property
+    def session_database_url(self) -> str:
+        """URL database mode sesi (port 5432) untuk skrip sinkronisasi & migrasi."""
+        raw = self.sync_database_url or self.database_url
+        for prefix in ("postgres://", "postgresql://"):
+            if raw.startswith(prefix):
+                raw = "postgresql+asyncpg://" + raw[len(prefix) :]
+        if raw.startswith("postgresql+asyncpg://"):
+            raw = raw.replace("sslmode=", "ssl=")
+            if not self.sync_database_url and ":6543/" in raw:
+                raw = raw.replace(":6543/", ":5432/", 1)
+        return raw
 
 
 @lru_cache

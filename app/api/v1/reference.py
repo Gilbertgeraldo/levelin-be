@@ -102,7 +102,7 @@ async def get_next_roles(
     return await reference.next_roles(db, occupation, limit)
 
 
-@router.get("/skills", response_model=Page[SkillOut], summary="Daftar skill (label Indonesia)")
+@router.get("/skills", response_model=Page[SkillOut], summary="Daftar skill (label Indonesia bila tersedia)")
 async def list_skills(
     response: Response,
     db: DB,
@@ -110,12 +110,30 @@ async def list_skills(
     q: Annotated[str | None, Query(max_length=100)] = None,
     category: Annotated[str | None, Query(max_length=40)] = None,
 ):
-    stmt = select(Skill).order_by(Skill.label)
+    stmt = select(Skill).order_by(func.coalesce(Skill.label_id, Skill.label), Skill.id)
     if q:
-        like = f"%{q.lower()}%"
-        stmt = stmt.where(or_(func.lower(Skill.label).like(like), func.lower(Skill.label_en).like(like)))
+        like = f"%{q}%"
+        stmt = stmt.where(
+            or_(
+                Skill.label.ilike(like),
+                Skill.label_id.ilike(like),
+                Skill.label_en.ilike(like),
+            )
+        )
     if category:
         stmt = stmt.where(Skill.category == category)
     rows, meta = await paginate_scalars(db, stmt, page)
     cache_public(response, CACHE_SECONDS)
-    return {"data": rows, "meta": meta}
+    return {
+        "data": [
+            {
+                "id": s.id,
+                "label": s.label_id or s.label,
+                "label_en": s.label_en,
+                "category": s.category,
+                "esco_uri": s.esco_uri,
+            }
+            for s in rows
+        ],
+        "meta": meta,
+    }

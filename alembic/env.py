@@ -62,7 +62,9 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
-    url = config.attributes.get("database_url")
+    from app.core.config import get_settings
+
+    url = config.attributes.get("database_url") or get_settings().session_database_url
     engine = build_engine(url)
     async with engine.connect() as connection:
         await connection.run_sync(do_run_migrations)
