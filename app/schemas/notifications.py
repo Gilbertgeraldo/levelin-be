@@ -13,6 +13,8 @@ class DeviceTokenIn(BaseModel):
 class DeviceTokenOut(BaseModel):
     id: uuid.UUID
     platform: str
+    token: str | None = None
+    last_seen_at: datetime | None = None
     created_at: datetime
 
 

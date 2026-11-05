@@ -10,6 +10,7 @@ from app.db.base import utcnow
 from app.models import Job, JobApplication, PassportSettings
 from app.schemas.jobs import ApplicationOut, ApplyIn, JobMatchOut
 from app.services import jobs, passport
+from app.services.notifications import notify
 
 router = APIRouter(prefix="/jobs", tags=["Lowongan"])
 
@@ -53,5 +54,16 @@ async def apply(job_id: uuid.UUID, body: ApplyIn, db: DB, user: CurrentUser):
         status="submitted",
     )
     db.add(application)
+    await db.flush()
+    if job.created_by is not None and job.created_by != user.id:
+        applicant_name = passport.display_name(user, public=False)
+        await notify(
+            db,
+            job.created_by,
+            "job_application",
+            "Pelamar baru masuk",
+            f'{applicant_name} melamar posisi "{job.title}".',
+            {"job_id": str(job.id), "application_id": str(application.id)},
+        )
     await db.commit()
     return application

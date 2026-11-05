@@ -2,7 +2,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Response
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.api.deps import DB, CurrentUser
 from app.core.errors import not_found
@@ -12,6 +12,18 @@ from app.models import DeviceToken, Notification
 from app.schemas.notifications import DeviceTokenIn, DeviceTokenOut, NotificationOut
 
 router = APIRouter(tags=["Notifikasi & pengingat"])
+
+
+@router.get("/me/device-tokens", response_model=list[DeviceTokenOut], summary="Daftar perangkat terdaftar untuk notifikasi")
+async def list_devices(db: DB, user: CurrentUser):
+    rows = (
+        await db.scalars(
+            select(DeviceToken)
+            .where(DeviceToken.user_id == user.id)
+            .order_by(DeviceToken.last_seen_at.desc(), DeviceToken.created_at.desc())
+        )
+    ).all()
+    return rows
 
 
 @router.post("/me/device-tokens", status_code=201, response_model=DeviceTokenOut, summary="Daftarkan token FCM perangkat")
@@ -69,3 +81,15 @@ async def mark_read(notification_id: uuid.UUID, db: DB, user: CurrentUser):
         note.read_at = utcnow()
         await db.commit()
     return note
+
+
+@router.post("/notifications/read-all", summary="Tandai semua notifikasi belum dibaca menjadi sudah dibaca")
+async def mark_all_read(db: DB, user: CurrentUser):
+    now = utcnow()
+    res = await db.execute(
+        update(Notification)
+        .where(Notification.user_id == user.id, Notification.read_at.is_(None))
+        .values(read_at=now)
+    )
+    await db.commit()
+    return {"updated": int(res.rowcount or 0)}

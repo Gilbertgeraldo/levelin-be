@@ -8,9 +8,15 @@ from app.api.deps import DB, Pagination, Reviewer
 from app.core.errors import ApiError, not_found
 from app.core.pagination import Page, paginate_scalars
 from app.db.base import utcnow
-from app.models import Attempt, CustomMissionRequest, Mission, Review, Skill
-from app.schemas.admin import MissionAdminIn, MissionAdminOut, ReviewDecisionIn, ReviewOut
 from app.ingest import apply_mission_payload
+from app.models import Attempt, CustomMissionRequest, Mission, Organization, Review, Skill
+from app.schemas.admin import (
+    CustomMissionAdminOut,
+    MissionAdminIn,
+    MissionAdminOut,
+    ReviewDecisionIn,
+    ReviewOut,
+)
 from app.services import missions as mission_service
 from app.services.audits import refresh_readiness
 from app.services.notifications import notify
@@ -182,9 +188,82 @@ async def link_custom_request(db, mission: Mission, request_id: uuid.UUID | None
     request = await db.get(CustomMissionRequest, request_id)
     if request is None:
         raise ApiError(400, "unknown_custom_request", "Pesanan misi kustom tidak ditemukan.")
+    was_published = request.status == "published"
     mission.org_id = request.org_id
     request.mission_id = mission.id
     request.status = "published" if mission.is_published else "in_review"
+    if mission.is_published and not was_published and request.requested_by is not None:
+        await notify(
+            db,
+            request.requested_by,
+            "custom_mission",
+            "Misi kustom telah diterbitkan",
+            f'Pesanan misi "{request.title}" telah diterbitkan menjadi misi "{mission.title}".',
+            {
+                "custom_mission_id": str(request.id),
+                "mission_id": str(mission.id),
+                "mission_slug": mission.slug,
+            },
+        )
+
+
+@router.get(
+    "/custom-missions",
+    response_model=Page[CustomMissionAdminOut],
+    summary="Daftar pesanan misi kustom dari seluruh organisasi untuk dikerjakan peninjau",
+)
+async def list_custom_missions_admin(
+    db: DB,
+    reviewer: Reviewer,
+    page: Pagination,
+    status: Literal["requested", "in_review", "published", "rejected"] | None = None,
+):
+    stmt = select(CustomMissionRequest).order_by(CustomMissionRequest.created_at.desc())
+    if status:
+        stmt = stmt.where(CustomMissionRequest.status == status)
+    rows, meta = await paginate_scalars(db, stmt, page)
+    org_ids = {r.org_id for r in rows if r.org_id}
+    org_names = (
+        dict((await db.execute(select(Organization.id, Organization.name).where(Organization.id.in_(org_ids)))).all())
+        if org_ids
+        else {}
+    )
+    data = [
+        {
+            "id": r.id,
+            "org_id": r.org_id,
+            "org_name": org_names.get(r.org_id),
+            "requested_by": r.requested_by,
+            "title": r.title,
+            "description": r.description,
+            "target_role": r.target_role,
+            "file_name": r.file_name,
+            "file_size": r.file_size,
+            "status": r.status,
+            "mission_id": r.mission_id,
+            "created_at": r.created_at,
+        }
+        for r in rows
+    ]
+    return {"data": data, "meta": meta}
+
+
+@router.get(
+    "/missions",
+    response_model=Page[MissionAdminOut],
+    summary="Daftar seluruh misi di bank misi (termasuk draf dan misi kustom)",
+)
+async def list_missions_admin(
+    db: DB,
+    reviewer: Reviewer,
+    page: Pagination,
+    is_published: bool | None = None,
+):
+    stmt = select(Mission).order_by(Mission.updated_at.desc(), Mission.created_at.desc())
+    if is_published is not None:
+        stmt = stmt.where(Mission.is_published.is_(is_published))
+    rows, meta = await paginate_scalars(db, stmt, page)
+    return {"data": [mission_admin_view(m) for m in rows], "meta": meta}
 
 
 @router.post(

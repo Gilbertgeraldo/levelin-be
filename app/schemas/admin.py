@@ -161,3 +161,18 @@ class MissionAdminOut(BaseModel):
     org_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
+
+
+class CustomMissionAdminOut(BaseModel):
+    id: uuid.UUID
+    org_id: uuid.UUID
+    org_name: str | None = None
+    requested_by: uuid.UUID | None = None
+    title: str
+    description: str | None
+    target_role: str | None
+    file_name: str | None
+    file_size: int | None
+    status: str
+    mission_id: uuid.UUID | None
+    created_at: datetime

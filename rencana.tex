@@ -1,0 +1,575 @@
+\documentclass[11pt,a4paper]{report}
+
+% ============================================================================
+% PAKET STANDAR DOKUMEN KORPORAT & REKAYASA PERANGKAT LUNAK
+% ============================================================================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[indonesian]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,top=2.5cm,bottom=2.5cm,left=2.6cm,right=2.4cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% Warna Korporat Levelin
+\usepackage[table,xcdraw]{xcolor}
+\definecolor{LevelinPrimary}{HTML}{0F172A}   % Slate 900
+\definecolor{LevelinAccent}{HTML}{2563EB}    % Blue 600
+\definecolor{LevelinTeal}{HTML}{0D9488}      % Teal 600
+\definecolor{LevelinAmber}{HTML}{D97706}     % Amber 600
+\definecolor{LevelinLight}{HTML}{F8FAFC}     % Slate 50
+\definecolor{LevelinBorder}{HTML}{CBD5E1}    % Slate 300
+\definecolor{LevelinMuted}{HTML}{475569}     % Slate 600
+
+% Matematika & Simbol
+\usepackage{amsmath,amssymb,amsfonts,mathtools}
+
+% Tabel & Tata Letak
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+% Kotak Eksekutif & Diagram
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, calc}
+\usepackage[most]{tcolorbox}
+
+% Listing Kode & API
+\usepackage{listings}
+\lstdefinestyle{levelincode}{
+    backgroundcolor=\color{LevelinLight},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    commentstyle=\color{LevelinTeal},
+    frame=single,
+    rulecolor=\color{LevelinBorder},
+    keepspaces=true,
+    keywordstyle=\color{LevelinAccent}\bfseries,
+    numbers=left,
+    numbersep=6pt,
+    numberstyle=\tiny\color{LevelinMuted},
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+\lstset{style=levelincode}
+
+% Hyperlink
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=LevelinAccent,
+    urlcolor=LevelinAccent,
+    citecolor=LevelinTeal,
+    pdftitle={Cetak Biru Arsitektur Sistem, AI/ML, dan Peta Jalan Produk Levelin},
+    pdfauthor={Divisi Teknologi, Produk, dan Rekayasa AI/ML Levelin},
+    pdfsubject={Corporate Engineering & Product Masterplan}
+}
+
+% Format Bab & Subbab
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{LevelinPrimary}}
+  {\filright\normalsize\color{LevelinAccent}\MakeUppercase{\chaptertitlename}\ \thechapter}
+  {4pt}
+  {\titlerule[1.2pt]\vspace{6pt}\filright}
+\titlespacing*{\chapter}{0pt}{-15pt}{22pt}
+
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{LevelinPrimary}}
+  {\thesection}{0.8em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{LevelinAccent}}
+  {\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries\color{LevelinMuted}}
+  {\thesubsubsection}{0.8em}{}
+
+% Kotak Callout Korporat
+\newtcolorbox{execbox}[1]{
+  colback=LevelinLight,
+  colframe=LevelinAccent,
+  fonttitle=\bfseries,
+  coltitle=white,
+  colbacktitle=LevelinAccent,
+  title={#1},
+  arc=2mm,
+  boxrule=0.8pt,
+  left=8pt,right=8pt,top=6pt,bottom=6pt
+}
+
+\newtcolorbox{riskbox}[1]{
+  colback=LevelinLight,
+  colframe=LevelinAmber,
+  fonttitle=\bfseries,
+  coltitle=white,
+  colbacktitle=LevelinAmber,
+  title={#1},
+  arc=2mm,
+  boxrule=0.8pt,
+  left=8pt,right=8pt,top=6pt,bottom=6pt
+}
+
+% Header & Footer
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\footnotesize\color{LevelinMuted}\textbf{PT LEVELIN TEKNOLOGI INDONESIA} --- Dokumen Cetak Biru Korporat}
+\fancyhead[R]{\footnotesize\color{LevelinMuted}Klasifikasi: \textbf{INTERNAL \& KONFIDENSIAL}}
+\fancyfoot[L]{\footnotesize\color{LevelinMuted}Dokumen No: LVL-ENG-PM-2026-004 (Rev 4.0)}
+\fancyfoot[R]{\footnotesize\color{LevelinMuted}Halaman \thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% Kolom Tabel Kustom
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+
+\begin{document}
+
+% ============================================================================
+% HALAMAN SAMPUL KORPORAT (TITLE PAGE)
+% ============================================================================
+\begin{titlepage}
+    \centering
+    \vspace*{0.8cm}
+    {\scshape\Large\color{LevelinAccent}\textbf{PT LEVELIN TEKNOLOGI INDONESIA}\par}
+    \vspace{0.2cm}
+    {\small\color{LevelinMuted}Divisi Strategi Produk, Arsitektur Sistem Enterprise, dan Rekayasa Kecerdasan Buatan\par}
+    \vspace{1.2cm}
+    \rule{\textwidth}{1.5pt}\\[0.5cm]
+    {\Huge\bfseries\color{LevelinPrimary} CETAK BIRU PENGEMBANGAN EKOSISTEM WEB, INTEGRASI APLIKASI MOBILE, DAN REKAYASA AI/ML\par}
+    \vspace{0.4cm}
+    {\Large\color{LevelinMuted} Rencana Strategis Kuartalan, Spesifikasi Arsitektur Lintas-Platform (Next.js + FastAPI + Flutter), dan Peta Jalan Komputasi Cerdas\par}
+    \vspace{0.3cm}
+    \rule{\textwidth}{1.5pt}\\[1.2cm]
+
+    \begin{tcolorbox}[colback=LevelinLight,colframe=LevelinBorder,width=0.94\textwidth,arc=2mm,boxrule=0.6pt]
+        \small
+        \renewcommand{\arraystretch}{1.35}
+        \begin{tabularx}{\textwidth}{L{4.5cm} X}
+            \textbf{Kode Dokumen} & : \texttt{LVL-BLUEPRINT-2026-V4} \\
+            \textbf{Versi / Status} & : \texttt{v4.0 --- Approved for Production Execution} \\
+            \textbf{Tanggal Terbit} & : 5 November 2026 \\
+            \textbf{Penyusun \& Penanggung Jawab} & : \textbf{Chief Technology Officer (CTO)}, \textbf{Technical Project Manager (PM)}, \& \textbf{Lead Full-Stack AI/ML Software Engineer} \\
+            \textbf{CakupanRepositori} & : \texttt{levelin-be} (FastAPI + PostgreSQL/Supabase) \& \texttt{levelin-web} (Next.js 16 + React 19) + Integrasi \texttt{levelin-mobile} (Flutter) \\
+            \textbf{Klasifikasi Keamanan} & : \textbf{Rahasia Perusahaan (Confidential --- Board \& Engineering)} \\
+        \end{tabularx}
+    \end{tcolorbox}
+
+    \vfill
+    \begin{flushleft}
+        \footnotesize\color{LevelinMuted}
+        \textbf{Ringkasan Dokumen:}\\
+        Dokumen ini menyatukan tiga sudut pandang kepemimpinan teknis: (1) \textbf{CTO} untuk keandalan arsitektur sistem, keamanan kredensial kriptografis, skalabilitas multi-tenant B2B, dan jembatan integrasi dengan aplikasi mobile Flutter serta sistem HRIS eksternal; (2) \textbf{Senior Full-Stack AI/ML Engineer} untuk perancangan mesin rekomendasi hibrida (Graf Taksonomi ESCO/KBJI/Lightcast + Vektor Embedding Voyage 1024-dimensi), kompilator SOP-ke-Misi otomatis, dan kalibrasi penilaian berbasis ketidakpastian (\textit{Active Learning}); serta (3) \textbf{Project Manager} untuk tata kelola eksekusi proyek, struktur rincian kerja (\textit{Work Breakdown Structure}), metrik \textit{North Star}, analisis keekonomian unit (\textit{Unit Economics}), dan mitigasi risiko operasional.
+    \end{flushleft}
+\end{titlepage}
+
+% ============================================================================
+% LEMBAR KONTROL DOKUMEN & PENGESAHAN
+% ============================================================================
+\chapter*{Lembar Kontrol Dokumen \& Pengesahan}
+\addcontentsline{toc}{chapter}{Lembar Kontrol Dokumen \& Pengesahan}
+
+\section*{Riwayat Revisi Dokumen}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{C{1.6cm} C{2.6cm} L{3.8cm} X}
+\toprule
+\textbf{Versi} & \textbf{Tanggal} & \textbf{Peran Penyusun} & \textbf{Uraian Perubahan Utama} \\
+\midrule
+1.0 &Fase 1 & Full-Stack Lead & Fondasi Web B2C/B2B, Audit Kesiapan AI berbasis ILO, Simulasi Misi dengan Bos AI (SSE), dan Paspor Skill Internal. \\
+2.0 &Fase 2 & Full-Stack Lead & Peluncuran Paspor Skill Publik (\texttt{/p/[slug]}), Cetak PDF Mandiri, Presence Real-Time, dan Pengaturan Visibilitas Publik. \\
+3.0 &Fase 3 & Data \& AI/ML Lead & Integrasi penuh skema referensi \texttt{ref} (ESCO, KBJI 2014, Lightcast), indeks \texttt{pg\_trgm}, algoritma \textit{Weighted Jaccard Next-Roles}, dan pipeline embedding \texttt{voyage-3.5}. \\
+4.0 & 05 Nov 2026 & CTO, PM, \& AI/ML Lead & \textbf{Cetak Biru Korporat Fase 4--7}: Penutupan siklus operasional B2B (Studio Misi Reviewer \& ATS Lite), Jembatan Aplikasi Mobile (PWA, QR SVG, Manajemen Perangkat FCM), serta Peta Jalan AI/ML Lanjutan. \\
+\bottomrule
+\end{tabularx}
+
+\vspace{0.8cm}
+\section*{Matriks Tanggung Jawab Kepemimpinan (RACI Eksekutif)}
+\begin{tabularx}{\textwidth}{L{4.2cm} L{4.2cm} X}
+\toprule
+\textbf{Jabatan / Peran} & \textbf{Fokus Strategis Utama} & \textbf{Target Keluaran Terukur (Deliverables)} \\
+\midrule
+\textbf{Chief Technology Officer (CTO)} & Arsitektur Sistem, Keamanan Data (UU PDP), Koneksi Pooler Supabase, Kontrak API Mobile/Web, Integrasi B2B HRIS. & SLA Uptime $\ge 99{,}9\%$, Latensi API $P_{95} < 250\text{ ms}$, Kesiapan Integrasi Aplikasi Flutter \& Webhook Enterprise. \\
+\textbf{Lead Full-Stack AI/ML Engineer} & Rekayasa Prompt \& Guardrails, Sistem Rekomendasi Graf+Vektor, Kompilator SOP-ke-Misi, Kalibrasi Penilaian Rubrik LLM. & Akurasi pemetaan tugas ILO/ESCO $\ge 88\%$, Efisiensi biaya token $< \text{Rp } 450$/sesi, Zero kebocoran kunci jawaban. \\
+\textbf{Technical Project Manager (PM)} & Peta Jalan Produk (Q1--Q4), Prioritisasi MoSCoW, Manajemen Sprint, Pengendalian Risiko, \& KPI Bisnis. & Penyelesaian fitur Fase 4 tepat waktu, Konversi B2B HR meningkat, Retensi bulanan pekerja meningkat. \\
+\bottomrule
+\end{tabularx}
+
+\tableofcontents
+\clearpage
+
+% ============================================================================
+% BAB 1: RINGKASAN EKSEKUTIF & VISI STRATEGIS PERUSAHAAN
+% ============================================================================
+\chapter{Ringkasan Eksekutif \& Visi Strategis Perusahaan}
+
+\begin{execbox}{Pernyataan Visi Eksekutif Levelin}
+Menjadi infrastruktur standar pembuktian keterampilan kerja (\textit{Verifiable Workforce Skill Infrastructure}) di Asia Tenggara yang menjembatani kesenjangan antara dampak transformasi AI pada pekerjaan, pelatihan praktis berbasis simulasi nyata, dan rekrutmen korporat berbasis bukti (\textit{evidence-based hiring}).
+\end{execbox}
+
+\section{Latar Belakang Masalah \& Peluang Pasar}
+Perusahaan-perusahaan modern menghadapi tiga krisis sumber daya manusia secara bersamaan:
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{Ketidakpastian Dampak AI pada Jabatan Kerja}: Pekerja dan pimpinan HR tidak memiliki alat ukur kuantitatif untuk memetakan tugas harian mana yang rentan diotomatisasi AI (\textit{exposure}) dan tugas mana yang dapat dipercepat dengan kolaborasi AI (\textit{augmentation}).
+    \item \textbf{Klaim CV yang Tidak Terverifikasi}: Proses rekrutmen konvensional masih bergantung pada daftar kata kunci di CV tanpa bukti nyata apakah kandidat mampu menyelesaikan skenario kerja sesuai Standar Operasional Prosedur (SOP) perusahaan.
+    \item \textbf{Fragmentasi antara Pelatihan \& Rekrutmen Internal/Eksternal}: Sistem manajemen pembelajaran (\textit{LMS}) perusahaan berjalan terpisah dari sistem pelacakan pelamar (\textit{ATS}) dan perencanaan suksesi karier (\textit{Career Pathing}).
+\end{enumerate}
+
+\section{Proposisi Nilai Unik Ekosistem Levelin}
+Levelin menyelesaikan ketiga masalah tersebut dalam satu platform terpadu yang melayani tiga aktor utama secara simultan:
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Pekerja \& Pencari Kerja (\texttt{worker} --- Web PWA \& Aplikasi Mobile Flutter)}:
+    Melakukan \textit{Audit Kesiapan AI} berbasis taksonomi internasional (ILO, ESCO, KBJI 2014), menerima rencana pengembangan karier 4 minggu, berlatih menyelesaikan simulasi kerja interaktif bersama \textit{Atasan AI (Boss Persona)}, dan membangun \textbf{Paspor Skill Publik} (\texttt{/p/[slug]}) yang dilengkapi bukti artefak kerja serta kode QR verifikasi.
+    \item \textbf{Manajer SDM \& Rekruter Perusahaan (\texttt{hr\_admin} --- Dashboard B2B Web)}:
+    Memantau peta kesiapan AI seluruh departemen, mencari kandidat terverifikasi berdasarkan kecocokan keterampilan (\textit{skill-verified talent pool}), membuka lowongan kerja berbasis kompetensi, mengelola status pelamar (\textit{ATS Lite}), serta memesan \textbf{Misi Kustom berbasis SOP internal perusahaan}.
+    \item \textbf{Tim Peninjau Ahli \& Kurator Kurikulum (\texttt{reviewer} --- Studio Internal Web)}:
+    Menjalankan kendali mutu (\textit{human-in-the-loop quality assurance}) terhadap sampel penilaian AI dan pengajuan banding pekerja, serta menyusun dan menerbitkan misi simulasi baru melalui \textbf{Studio Misi} untuk memenuhi pesanan SOP dari klien korporat (HR).
+\end{itemize}
+
+\section{Audit Kematangan Sistem Saat Ini (Status Fase 1--3)}
+Berdasarkan audit teknis terhadap repositori \texttt{levelin-be} dan \texttt{levelin-web} hingga komitmen produksi terakhir:
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{Fondasi Data \& Taksonomi (Selesai 100\%)}: Skema referensi \texttt{ref} (ESCO Occupations, ESCO Skills, ISCO-08 Groups, KBJI 2014, dan Lightcast Open Skills) telah terhubung ke tabel utama backend melalui mekanisme sinkronisasi idempoten (\texttt{python -m scripts.sync\_ref}), dilengkapi indeks pencarian cepat \texttt{pg\_trgm} GIN, dukungan kolom lokalisasi Bahasa Indonesia (\texttt{label\_id}), dan perhitungan transisi karier \textit{Weighted Jaccard}.
+    \item \textbf{Mesin AI \& Guardrails (Selesai 100\%)}: Mendukung multi-provider LLM (Anthropic Claude, Google Gemini, Groq) dengan pemisahan \texttt{tier="main"} dan \texttt{tier="light"}, streaming SSE waktu nyata dengan \texttt{SentenceGuard} (pencegah kebocoran kunci jawaban dan filter sensitivitas PHK), serta cadangan deterministik (\textit{rule-based fallback}) saat kuota/jaringan LLM terganggu.
+    \item \textbf{Kesenjangan Operasional yang Diselesaikan pada Fase 4 Ini}:
+    \begin{itemize}
+        \item Penutupan siklus pesanan SOP dari HR (\texttt{/hr/misi-kustom}) ke antarmuka pembuatan misi oleh Reviewer (\texttt{/tinjau/misi}).
+        \item Penutupan siklus rekrutmen dari pelamar ke pengubahan status seleksi oleh HR (\texttt{shortlisted}, \texttt{interview}, \texttt{accepted}, \texttt{rejected}) beserta pelacakan lamaran di sisi pekerja (\texttt{/saya/karier}).
+        \item Jembatan integrasi aplikasi mobile: manajemen perangkat terdaftar (\texttt{GET /v1/me/device-tokens}), QR Code SVG pada paspor publik untuk verifikasi cetak/kamera HP, \texttt{manifest.webmanifest} (PWA), serta navigasi \textit{deep-link} pada pusat notifikasi.
+    \end{itemize}
+\end{enumerate}
+
+% ============================================================================
+% BAB 2: ARSITEKTUR SISTEM TARGET & INTEGRASI APLIKASI MOBILE (CTO BLUEPRINT)
+% ============================================================================
+\chapter{Arsitektur Sistem Target \& Integrasi Aplikasi Mobile (Perspektif CTO)}
+
+Sebagai Chief Technology Officer (CTO), prinsip arsitektur utama yang diterapkan pada Levelin adalah \textbf{API-First Omnichannel Architecture}: satu sumber kebenaran logika bisnis (\textit{Single Source of Truth}) berada di backend FastAPI (\texttt{levelin-be}), sementara aplikasi web (\texttt{levelin-web}) dan aplikasi mobile native (\texttt{levelin-mobile} berbasis Flutter) bertindak sebagai klien presentasi yang berbagi kontrak skema, sesi autentikasi, dan peristiwa waktu nyata yang identik.
+
+\section{Topologi Arsitektur Lintas-Platform}
+
+\begin{center}
+\begin{tikzpicture}[
+    node distance=1.1cm and 1.4cm,
+    box/.style={rectangle, rounded corners=4pt, draw=LevelinPrimary, fill=LevelinLight, thick, minimum width=3.6cm, minimum height=1.1cm, align=center, font=\footnotesize\bfseries},
+    api/.style={rectangle, rounded corners=4pt, draw=LevelinAccent, fill=blue!6, very thick, minimum width=11.8cm, minimum height=1.2cm, align=center, font=\small\bfseries},
+    db/.style={rectangle, rounded corners=4pt, draw=LevelinTeal, fill=teal!6, thick, minimum width=3.6cm, minimum height=1.2cm, align=center, font=\footnotesize\bfseries},
+    arrow/.style={-{Stealth[length=2.5mm]}, thick, draw=LevelinMuted}
+]
+    % Lapisan Klien
+    \node[box] (web) {Next.js 16 Web App\\(\texttt{levelin-web} / PWA)};
+    \node[box, right=of web] (mobile) {Flutter Mobile App\\(Android \& iOS)};
+    \node[box, right=of mobile] (ext) {Mitra Eksternal / HRIS\\(Paspor Publik \& Webhook)};
+
+    % Lapisan API Gateway
+    \node[api, below=1.2cm of mobile] (fastapi) {FastAPI Backend Engine (\texttt{levelin-be}) --- REST \texttt{/v1} + Server-Sent Events (SSE)\\JWT Auth $\cdot$ RBAC (\texttt{worker}, \texttt{hr\_admin}, \texttt{reviewer}) $\cdot$ SentenceGuard $\cdot$ Rate Limiter};
+
+    % Lapisan Data & Layanan Eksternal
+    \node[db, below=1.3cm of fastapi, xshift=-4.1cm] (supabase) {Supabase PostgreSQL\\Pooler \texttt{:6543} \& \texttt{:5432}\\+\texttt{pgvector} \& \texttt{pg\_trgm}};
+    \node[db, below=1.3cm of fastapi] (ai) {Multi-LLM \& Embeddings\\Claude / Gemini / Groq\\+ Voyage AI (\texttt{1024-dim})};
+    \node[db, below=1.3cm of fastapi, xshift=4.1cm] (infra) {Layanan Pendukung\\FCM Push Notification\\+ Midtrans Payment Gateway};
+
+    % Panah Koneksi
+    \draw[arrow, <->] (web.south) -- (web.south |- fastapi.north);
+    \draw[arrow, <->] (mobile.south) -- (mobile.south |- fastapi.north);
+    \draw[arrow, <->] (ext.south) -- (ext.south |- fastapi.north);
+
+    \draw[arrow, <->] (fastapi.south -| supabase.north) -- (supabase.north);
+    \draw[arrow, <->] (fastapi.south) -- (ai.north);
+    \draw[arrow, <->] (fastapi.south -| infra.north) -- (infra.north);
+\end{tikzpicture}
+\end{center}
+
+\section{Strategi Manajemen Koneksi Database (PgBouncer Dual-Pooler)}
+Di lingkungan produksi Supabase, kesalahan konfigurasi pooler sering menjadi penyebab utama kegagalan aplikasi berskala besar. Oleh karena itu, Levelin menerapkan pemisahan koneksi secara ketat:
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{Jalur Transaksi API Real-Time (\texttt{DATABASE\_URL} --- Port \texttt{6543})}:
+    Menggunakan PgBouncer dalam mode \textit{Transaction Pooling}. Seluruh koneksi \texttt{asyncpg} dikonfigurasi dengan \texttt{statement\_cache\_size=0} dan \texttt{prepared\_statement\_cache\_size=0} agar bebas dari konflik \textit{prepared statement} lintas transaksi.
+    \item \textbf{Jalur Migrasi \& Sinkronisasi Berat (\texttt{SESSION\_DATABASE\_URL} --- Port \texttt{5432})}:
+    Menggunakan mode \textit{Session Pooling} khusus untuk eksekusi migrasi Alembic, sinkronisasi puluhan ribu relasi taksonomi ESCO (\texttt{python -m scripts.sync\_ref}), dan pembuatan embedding vektor secara massal (\texttt{python -m scripts.embed\_reference}).
+\end{enumerate}
+
+\section{Arsitektur Integrasi Aplikasi Mobile (Flutter) \& Web PWA}
+Agar pengguna dapat berpindah perangkat tanpa kehilangan konteks (\textit{seamless handoff}), empat mekanisme teknis diterapkan:
+
+\subsection{1. Kontrak Autentikasi \& Deep-Link Redirect}
+Aplikasi Web dan aplikasi Flutter menggunakan proyek Supabase Auth yang sama. Variabel lingkungan \texttt{APP\_AUTH\_REDIRECT\_URL} (mis. \texttt{levelin://auth/callback}) dan skema Universal Links / App Links memungkinkan pengguna yang membuka tautan undangan perusahaan atau notifikasi di ponsel langsung diarahkan ke layar terkait di dalam aplikasi mobile (atau jatuh kembali ke Web PWA bila aplikasi native belum terpasang):
+\begin{itemize}[leftmargin=1.5em]
+    \item \texttt{levelin://mission/\{slug\}} $\leftrightarrow$ \texttt{https://levelin-manager.vercel.app/saya/misi/\{slug\}}
+    \item \texttt{levelin://attempt/\{id\}} $\leftrightarrow$ \texttt{https://levelin-manager.vercel.app/saya/misi/percobaan/\{id\}}
+    \item \texttt{levelin://passport/\{slug\}} $\leftrightarrow$ \texttt{https://levelin-manager.vercel.app/p/\{slug\}}
+    \item \texttt{levelin://career/jobs} $\leftrightarrow$ \texttt{https://levelin-manager.vercel.app/saya/karier}
+\end{itemize}
+
+\subsection{2. Sinkronisasi Draf Lintas Perangkat (\textit{Cross-Device Attempt Continuity})}
+Saat pekerja mengerjakan simulasi misi di aplikasi mobile saat perjalanan dan ingin melanjutkan penulisan laporan di laptop:
+\begin{itemize}[leftmargin=1.5em]
+    \item Endpoint \texttt{POST /v1/missions/\{slug\}/start} bersifat idempoten untuk percobaan yang masih berstatus \texttt{in\_progress} --- mengembalikan objek \texttt{Attempt} beserta isi \texttt{draft} dan riwayat percakapan \texttt{AttemptMessage} yang sama persis di perangkat mana pun.
+    \item Endpoint \texttt{PUT /v1/attempts/\{attempt\_id\}/draft} menyimpan draf secara berkala (\textit{autosave debounce} 1,5 detik) dengan cap waktu \texttt{updated\_at} UTC.
+\end{itemize}
+
+\subsection{3. Manajemen Perangkat Terdaftar \& Push Notification (FCM)}
+Tabel \texttt{device\_tokens} mencatat setiap perangkat mobile (\texttt{android}, \texttt{ios}) dan browser (\texttt{web}) milik pengguna. Setiap kali fungsi \texttt{notify()} dipanggil di backend (mis. hasil penilaian keluar, status lamaran kerja diperbarui HR, atau misi kustom selesai diterbitkan), sistem menyimpan notifikasi di database sekaligus mengirimkan muatan data (\textit{data payload}) ke Firebase Cloud Messaging (FCM). Pengguna kini dapat memantau dan mencabut akses perangkat dari halaman \texttt{/saya/pengaturan}.
+
+\subsection{4. Verifikasi Paspor Skill Publik dengan QR Code Mandiri}
+Setiap Paspor Skill Publik (\texttt{/p/[slug]}) dilengkapi generator QR Code berbasis matriks SVG murni yang merender URL verifikasi publik secara langsung di sisi klien tanpa ketergantungan layanan gambar eksternal. Saat pengguna mengekspor paspor ke PDF (\texttt{window.print()}), QR Code tersebut ikut tercetak di sudut dokumen sehingga rekruter yang menerima CV kertas dapat langsung memindainya menggunakan kamera ponsel.
+
+\section{Keamanan, Privasi Data (UU PDP), \& Integritas Penilaian}
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{Persetujuan Pemrosesan Data Eksplisit (\textit{Explicit Consent Gate})}: Endpoint pembuatan audit AI (\texttt{POST /v1/audits}) menolak pemrosesan apabila atribut \texttt{consent\_data\_processing} pada profil pengguna bernilai \texttt{false}, sesuai amanat Undang-Undang Pelindungan Data Pribadi (UU No. 27 Tahun 2022).
+    \item \textbf{Isolasi Kunci Jawaban di Server (\textit{Zero Answer-Key Exposure})}: Atribut \texttt{Mission.answer\_key} hanya pernah diakses oleh modul internal \texttt{app/services/grading.py} dan endpoint khusus Reviewer (\texttt{/v1/admin/missions}). Selain itu, selama sesi chat bersama Bos AI, \texttt{SentenceGuard} memeriksa setiap kalimat keluaran LLM secara \textit{streaming} dan membatalkan respons (\texttt{event: reset}) apabila terdeteksi kebocoran angka atau kata kunci jawaban.
+    \item \textbf{Kontrol Privasi Paspor Publik}: Eksposur profil pada endpoint tanpa autentikasi (\texttt{GET /v1/public/passports/\{slug\}}) dikendalikan sepenuhnya oleh pemilik akun melalui sakelar \texttt{public\_passport\_enabled} serta hanya menampilkan email bila \texttt{allow\_employer\_contact = true}.
+\end{enumerate}
+
+% ============================================================================
+% BAB 3: DESAIN REKAYASA AI/ML & DATA SCIENCE (AI/ML ENGINEER BLUEPRINT)
+% ============================================================================
+\chapter{Desain Rekayasa AI/ML \& Data Science (Perspektif Lead AI/ML Engineer)}
+
+Sebagai Senior Full-Stack AI/ML Software Engineer, fokus rekayasa cerdas pada Levelin dirancang agar \textbf{dapat dijelaskan (\textit{explainable})}, \textbf{hemat biaya (\textit{cost-bounded})}, dan \textbf{tahan gagal (\textit{gracefully degradable})}. Bab ini merinci formulasi matematis dan arsitektur pipeline AI yang sudah berjalan maupun yang akan dikembangkan pada fase berikutnya.
+
+\section{Formulasi Mesin Rekomendasi Jabatan Tujuan (\textit{Next-Roles}) \& Kecocokan Kandidat}
+
+\subsection{1. Kemiripan Graf Keterampilan Berbobot (\textit{Weighted Jaccard Skill Graph})}
+Setiap jabatan pada taksonomi ESCO memiliki himpunan keterampilan wajib (\textit{essential skills}, $E_i$) dan keterampilan opsional (\textit{optional skills}, $O_i$) pada tabel \texttt{occupation\_skills}. Mengingat keterampilan wajib jauh lebih menentukan kesiapan kerja seseorang dibandingkan keterampilan tambahan, kita mendefinisikan fungsi bobot keterampilan $w(o, s)$ untuk jabatan $o$ dan keterampilan $s \in S_o = E_o \cup O_o$:
+\[
+w(o, s) =
+\begin{cases}
+2{,}0 & \text{jika } \text{relation\_type}(o, s) = \text{\texttt{essential}}, \\
+1{,}0 & \text{jika } \text{relation\_type}(o, s) = \text{\texttt{optional}}, \\
+0{,}0 & \text{jika } s \notin S_o.
+\end{cases}
+\]
+Kemiripan struktural antara jabatan asal $A$ dan jabatan kandidat tujuan $B$ dihitung menggunakan \textbf{Indeks Jaccard Berbobot}:
+\[
+\mathcal{J}_w(A, B) = \frac{\sum_{s \in S_A \cap S_B} \min\!\big(w(A, s),\, w(B, s)\big)}{\sum_{s \in S_A \cup S_B} \max\!\big(w(A, s),\, w(B, s)\big)} \in [0, 1].
+\]
+
+\subsection{2. Skor Hibrida Graf + Vektor Embedding (\texttt{voyage-3.5} 1024-Dimensi)}
+Untuk menangkap kemiripan semantik lintas bidang yang mungkin menggunakan istilah keterampilan berbeda, setiap jabatan dan tugas direpresentasikan sebagai vektor ternormalisasi $\mathbf{e}_A, \mathbf{e}_B \in \mathbb{R}^{1024}$ ($\|\mathbf{e}\|_2 = 1$). Skor rekomendasi transisi karier hibrida $\mathcal{S}_{\text{transition}}(A, B)$ dirumuskan sebagai:
+\[
+\mathcal{S}_{\text{transition}}(A, B) = \alpha \cdot \mathcal{J}_w(A, B) + (1 - \alpha) \cdot \max\!\big(0, \langle \mathbf{e}_A, \mathbf{e}_B \rangle\big) + \gamma \cdot \mathbb{I}(\text{ISCO}_4(A) = \text{ISCO}_4(B)),
+\]
+di mana $\alpha = 0{,}65$ memprioritaskan irisan keterampilan nyata yang dapat diverifikasi lewat misi, dan $\gamma = 0{,}08$ memberikan bonus kedekatan keluarga jabatan ISCO-08 4 digit.
+
+\subsection{3. Skor Kecocokan Kandidat terhadap Lowongan HR (\textit{Talent-Job Fit Score})}
+Saat HR membuka lowongan $J$ dengan himpunan keterampilan yang dipersyaratkan $S_J = \{s_1, \dots, s_k\}$ dan mencari kandidat di \texttt{/hr/kandidat}, skor kesiapan kandidat $u$ yang memiliki himpunan bukti keterampilan terverifikasi di Paspor Skill $P_u$ dengan nilai tertinggi per keterampilan $\hat{g}(u, s) \in [0, 100]$ adalah:
+\[
+\text{FitScore}(u, J) = \frac{100}{|S_J|} \sum_{s \in S_J} \mathbb{I}(s \in P_u) \cdot \left(0{,}7 + 0{,}3 \cdot \frac{\hat{g}(u, s)}{100}\right).
+\]
+Formulasi ini menjamin bahwa kandidat yang tidak sekadar lulus batas minimum, melainkan meraih nilai simulasi tinggi pada keterampilan yang relevan, akan menempati peringkat teratas di dashboard HR.
+
+\section{Arsitektur Penilaian Hibrida 2-Tahap (\textit{Hybrid Objective + LLM Rubric Grading})}
+Penilaian setiap pengumpulan misi (\texttt{POST /v1/attempts/\{id\}/submit}) dirancang untuk mencegah halusinasi penilaian LLM melalui pendekatan dua lapis:
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{Lapis 1 --- Pemeriksaan Objektif Deterministik ($\text{Score}_{\text{obj}}$)}:
+    Dieksekusi oleh mesin aturan Python (\texttt{objective\_check}) terhadap jawaban numerik (dengan toleransi absolut $\epsilon$ atau persentase $\delta\%$), pilihan ganda, pencocokan kata kunci minimum (\texttt{contains}), dan ekspresi reguler (\texttt{regex}).
+    \item \textbf{Lapis 2 --- Evaluasi Rubrik Terstruktur 4 Dimensi ($\text{Score}_{\text{rubric}}$)}:
+    LLM (\texttt{tier="main"}) mengevaluasi kualitas argumen tertulis berdasarkan rubrik misi pada skala $r_k \in \{1, 2, 3, 4\}$ untuk setiap kriteria $k \in \{1, \dots, K\}$ dengan skema JSON ketat yang divalidasi oleh Pydantic.
+    \item \textbf{Rumus Kelulusan Akhir}:
+    Dengan bobot objektif $w_{\text{obj}} \in [0, 1]$ (default $0{,}4$):
+    \[
+    \text{Score}_{\text{total}} = \text{round}\!\Big(100 \cdot \big(w_{\text{obj}} \cdot \bar{o} + (1 - w_{\text{obj}}) \cdot \frac{\bar{r}}{4}\big)\Big), \quad
+    \text{Passed} = (\bar{o} = 1{,}0) \land (\bar{r} \ge 3{,}0).
+    \]
+\end{enumerate}
+
+\section{Peta Jalan Inovasi AI/ML Berikutnya (Fase 5--6)}
+
+\subsection{1. AI SOP-to-Mission Compiler (Otomasi Pembuatan Misi untuk Reviewer)}
+\begin{execbox}{Dampak Bisnis AI SOP-to-Mission Compiler}
+Memangkas waktu pembuatan misi simulasi kustom dari \textbf{3 jam manual menjadi $< 3$ menit} tinjauan manusia, sehingga kapasitas tim Reviewer dalam melayani pesanan B2B HR meningkat 40$\times$ lipat.
+\end{execbox}
+Alur kerja pipeline yang direncanakan:
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{Input}: Pesanan \texttt{CustomMissionRequest} dari HR yang berisi judul jabatan, deskripsi skenario masalah, dan teks/dokumen SOP perusahaan.
+    \item \textbf{Tahap 1 (Semantic Skill Grounding)}: Teks SOP di-embed menggunakan \texttt{voyage-3.5} untuk mencari 5 keterampilan ESCO/Lightcast paling relevan melalui pencarian \textit{Approximate Nearest Neighbor} (\texttt{pgvector} cosine distance).
+    \item \textbf{Tahap 2 (Structured Mission Synthesis)}: LLM (\texttt{tier="main"}) menghasilkan draf objek \texttt{MissionAdminIn} lengkap: narasi skenario (\texttt{brief}), kepribadian atasan penguji (\texttt{boss\_persona}), tabel data simulasi (\texttt{simulation\_data}), kolom input jawaban (\texttt{answer\_fields}), kunci pemeriksaan objektif (\texttt{answer\_key}), dan 4 kriteria rubrik penilaian (\texttt{rubric}).
+    \item \textbf{Tahap 3 (Human-in-the-Loop Verification)}: Draf langsung dimuat ke formulir \textbf{Studio Misi Reviewer} (\texttt{/tinjau/misi}) untuk diperiksa, disempurnakan, dan diterbitkan dengan satu klik.
+\end{enumerate}
+
+\subsection{2. Confidence-Calibrated Active Learning untuk Antrean Tinjauan}
+Alih-alih mengambil sampel tinjauan secara acak murni, antrean \texttt{/tinjau} diprioritaskan menggunakan skor ketidakpastian penilaian $\mathcal{U}(a)$ pada percobaan $a$:
+\[
+\mathcal{U}(a) = \underbrace{|\bar{o}(a) - \tfrac{1}{4}\bar{r}(a)|}_{\text{Diskrepansi Objektif vs Rubrik}} + \lambda_1 \cdot \mathbb{I}\!\big(|\bar{r}(a) - 3{,}0| \le 0{,}25\big) + \lambda_2 \cdot \mathbb{I}\!\big(\text{engine}(a) = \text{\texttt{fallback}}\big).
+\]
+Percobaan yang berada tepat di ambang kelulusan ($\bar{r} \approx 3{,}0$) atau yang mengalami ketimpangan antara skor objektif dan skor rubrik secara otomatis dinaikkan prioritasnya di antrean Reviewer manusia.
+
+\subsection{3. Pipeline Lokalisasi Taksonomi Otomatis (\texttt{scripts.translate\_ref})}
+Mengingat sekitar 2.942 jabatan dan ribuan keterampilan ESCO di skema \texttt{ref} berbahasa Inggris, sedang disiapkan pipeline batch berbasis LLM ringan (\texttt{tier="light"}) yang menerjemahkan \texttt{label} ke kolom \texttt{label\_id} menggunakan glosarium baku KBJI 2014 dan SKKNI Kementerian Ketenagakerjaan RI.
+
+% ============================================================================
+% BAB 4: SPESIFIKASI TEKNIS FITUR FASE 4 (FULL-STACK ENGINEERING SPEC)
+% ============================================================================
+\chapter{Spesifikasi Teknis Fitur Fase 4 (Full-Stack Engineering Spec)}
+
+Bab ini mendokumentasikan spesifikasi rekayasa perangkat lunak untuk empat pilar fitur yang menutup celah ekosistem antara Pekerja, HR, Reviewer, dan Aplikasi Mobile pada Fase 4.
+
+\section{Pilar 1: Studio Misi Reviewer \& Pemenuhan Misi Kustom (\texttt{/tinjau/misi})}
+
+\subsection{Spesifikasi Endpoint Backend (\texttt{app/api/v1/admin.py})}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{L{2.0cm} L{5.2cm} L{2.4cm} X}
+\toprule
+\textbf{Metode} & \textbf{Path Endpoint} & \textbf{Otorisasi} & \textbf{Deskripsi Fungsional} \\
+\midrule
+\texttt{GET} & \texttt{/v1/admin/custom-missions} & \texttt{reviewer} & Mengambil daftar seluruh pesanan misi kustom SOP dari HR (\texttt{CustomMissionRequest}) beserta nama organisasi, target jabatan, dan status pemenuhannya (\texttt{submitted}, \texttt{in\_review}, \texttt{published}). \\
+\texttt{GET} & \texttt{/v1/admin/missions} & \texttt{reviewer} & Mengambil katalog seluruh misi di bank misi (baik yang sudah diterbitkan maupun draf internal) untuk dikelola di Studio Misi. \\
+\texttt{POST} & \texttt{/v1/admin/missions} & \texttt{reviewer} & Membuat atau memperbarui misi berdasarkan \texttt{slug}, menautkannya ke \texttt{custom\_request\_id} (bila ada), mengubah status pesanan HR menjadi \texttt{published}, dan mengirim notifikasi otomatis ke pemesan HR. \\
+\texttt{PUT} & \texttt{/v1/admin/missions/\{id\}} & \texttt{reviewer} & Memperbarui isi misi, rubrik, kunci jawaban, dan status publikasi (\texttt{is\_published}). \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Spesifikasi Antarmuka Web (\texttt{src/app/tinjau/misi/page.tsx})}
+\begin{itemize}[leftmargin=1.5em]
+    \item \textbf{Panel Pesanan SOP HR}: Menampilkan daftar permintaan misi kustom dari perusahaan klien. Saat Reviewer mengklik tombol \textbf{``Kerjakan Pesanan Ini''}, formulir Studio Misi otomatis terisi (\textit{pre-filled}) dengan judul, ringkasan skenario, kode ISCO jabatan target, dan ID pesanan kustom terkait.
+    \item \textbf{Editor Misi Terstruktur}: Memungkinkan pengaturan informasi dasar misi (judul, slug, jenis, tingkat kesulitan, durasi, skor lulus), skenario brief, kepribadian Bos AI, kolom input jawaban dinamis, kunci jawaban objektif, rubrik 4 kriteria, serta pemilihan keterampilan ESCO/Lightcast yang diberikan saat lulus.
+\end{itemize}
+
+\section{Pilar 2: ATS Lite HR \& Pelacakan ``Lamaran Saya'' untuk Pekerja}
+
+\subsection{Spesifikasi Endpoint Backend (\texttt{app/api/v1/org.py} \& \texttt{app/api/v1/me.py})}
+\begin{tabularx}{\textwidth}{L{2.0cm} L{6.2cm} L{2.2cm} X}
+\toprule
+\textbf{Metode} & \textbf{Path Endpoint} & \textbf{Otorisasi} & \textbf{Deskripsi Fungsional} \\
+\midrule
+\texttt{PATCH} & \texttt{/v1/org/jobs/\{job\_id\}/applications/\{app\_id\}} & \texttt{hr\_admin} & Mengubah status lamaran kandidat menjadi \texttt{submitted}, \texttt{shortlisted}, \texttt{interview}, \texttt{accepted}, atau \texttt{rejected}, serta mengirimkan notifikasi waktu nyata \& push FCM ke pelamar. \\
+\texttt{GET} & \texttt{/v1/me/applications} & \texttt{worker} & Mengambil daftar seluruh lamaran kerja yang pernah dikirim oleh pekerja lengkap dengan detail lowongan, nama organisasi, waktu melamar, dan status seleksi terkini. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Spesifikasi Antarmuka Web (\texttt{/hr/lowongan} \& \texttt{/saya/karier})}
+\begin{itemize}[leftmargin=1.5em]
+    \item Di \textbf{Dashboard HR (\texttt{/hr/lowongan})}: Pada panel daftar pelamar setiap lowongan, HR kini memiliki tombol aksi cepat (\textit{Shortlist}, \textit{Wawancara}, \textit{Terima}, \textit{Tolak}) serta tautan langsung menuju Paspor Skill Publik pelamar (\texttt{/p/[slug]}).
+    \item Di \textbf{Halaman Karier Pekerja (\texttt{/saya/karier})}: Menambahkan kartu \textbf{``Riwayat \& Status Lamaran Saya''} yang menampilkan lencana status berwarna (\textit{Terkirim}, \textit{Masuk Shortlist}, \textit{Tahap Wawancara}, \textit{Diterima}, \textit{Belum Sesuai}) sehingga pekerja mendapat kepastian transparansi proses rekrutmen.
+\end{itemize}
+
+\section{Pilar 3: Jembatan Aplikasi Mobile, QR Code Paspor Publik, \& PWA}
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{Endpoint Daftar Perangkat Mobile (\texttt{GET /v1/me/device-tokens})}: Mengembalikan daftar perangkat yang terdaftar pada akun pengguna (\texttt{id}, \texttt{platform}, \texttt{token\_preview}, \texttt{created\_at}, \texttt{updated\_at}) sehingga pengguna di \texttt{/saya/pengaturan} dapat melihat perangkat Android/iOS/Web mana saja yang terhubung dan menghapus perangkat lama (\texttt{DELETE /v1/me/device-tokens/\{token\}}).
+    \item \textbf{Generator QR Code SVG Mandiri di Paspor Publik (\texttt{/p/[slug]})} : Komponen matriks QR SVG murni yang merender tautan publik paspor tanpa memanggil API pihak ketiga, tampil tajam di layar maupun saat dicetak ke PDF/kertas.
+    \item \textbf{Manifest Progressive Web App (\texttt{src/app/manifest.ts})}: Menyediakan \texttt{/manifest.webmanifest} standar W3C agar aplikasi web dapat diinstal langsung ke layar utama ponsel Android/iOS dengan tampilan \texttt{standalone}.
+\end{enumerate}
+
+\section{Pilar 4: Pusat Notifikasi Interaktif \& Deep-Link Routing}
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{Endpoint \texttt{POST /v1/notifications/read-all}}: Menandai seluruh notifikasi pengguna yang belum dibaca menjadi sudah dibaca dalam satu query \texttt{UPDATE} atomik dan mengembalikan jumlah baris yang diperbarui.
+    \item \textbf{Navigasi Deep-Link Otomatis di Header (\texttt{NotificationsMenu})}: Saat pengguna mengklik item notifikasi, sistem menandai notifikasi tersebut telah dibaca sekaligus menavigasikan pengguna secara cerdas berdasarkan \texttt{kind} dan \texttt{payload}:
+    \begin{itemize}
+        \item \texttt{review\_result} dengan \texttt{attempt\_id} $\rightarrow$ \texttt{/saya/misi/percobaan/\{attempt\_id\}}
+        \item \texttt{job\_application} (untuk HR) $\rightarrow$ \texttt{/hr/lowongan}
+        \item \texttt{application\_status} (untuk Pekerja) $\rightarrow$ \texttt{/saya/karier}
+        \item \texttt{custom\_mission} (untuk HR) $\rightarrow$ \texttt{/hr/misi-kustom}
+        \item \texttt{payment} $\rightarrow$ \texttt{/saya/langganan}
+    \end{itemize}
+\end{enumerate}
+
+% ============================================================================
+% BAB 5: MANAJEMEN PROYEK, ROADMAP KUARTALAN, MATRIKS RISIKO, & KPI (PM BLUEPRINT)
+% ============================================================================
+\chapter{Manajemen Proyek, Peta Jalan Kuartalan, Matriks Risiko, \& KPI Bisnis (Perspektif PM)}
+
+Sebagai Project Manager, keberhasilan pengembangan produk tidak hanya diukur dari kelengkapan fitur teknis, melainkan dari **ketepatan urutan eksekusi**, **efisiensi biaya operasional (Unit Economics)**, dan **dampak terhadap metrik bisnis utama (North Star Metrics)**.
+
+\section{Prioritisasi Fitur Menggunakan Kerangka MoSCoW}
+
+\renewcommand{\arraystretch}{1.35}
+\begin{longtable}{L{2.8cm} L{4.6cm} L{3.2cm} L{3.8cm}}
+\toprule
+\textbf{Kategori MoSCoW} & \textbf{Inisiatif / Modul Fitur} & \textbf{Target Rilis} & \textbf{Dampak Bisnis Utama} \\
+\midrule
+\endhead
+\textbf{Must Have} \newline (Wajib Sekarang) & Studio Misi Reviewer (\texttt{/tinjau/misi}) \& Pemenuhan SOP HR & Fase 4 (Sekarang) & Membuka monetisasi B2B dari pesanan misi kustom korporat. \\
+\textbf{Must Have} \newline (Wajib Sekarang) & ATS Lite HR \& Pelacakan Status Lamaran Pekerja & Fase 4 (Sekarang) & Menutup siklus rekrutmen internal/eksternal dari awal hingga diterima. \\
+\textbf{Must Have} \newline (Wajib Sekarang) & Manajemen Perangkat Mobile, QR Paspor Publik, \& PWA Manifest & Fase 4 (Sekarang) & Memastikan kesiapan integrasi aplikasi Flutter \& verifikasi CV cetak. \\
+\textbf{Must Have} \newline (Wajib Sekarang) & Pusat Notifikasi \textit{Read-All} \& \textit{Deep-Link Routing} & Fase 4 (Sekarang) & Meningkatkan keterlibatan ulang (\textit{re-engagement}) pengguna. \\
+\midrule
+\textbf{Should Have} \newline (Fase Berikutnya) & AI SOP-to-Mission Compiler (1-Klik dari Dokumen SOP) & Fase 5 (Q2) & Mengurangi beban operasional tim Reviewer hingga 90\%. \\
+\textbf{Should Have} \newline (Fase Berikutnya) & Lokalisasi Penuh Bahasa Indonesia (\texttt{label\_id}) untuk ESCO & Fase 5 (Q2) & Meningkatkan kenyamanan pengguna non-bahasa Inggris di Indonesia. \\
+\midrule
+\textbf{Could Have} \newline (Ekspansi Produk) & Penilaian Bukti Multimodal (Foto/Suara Lapangan via Flutter) & Fase 6 (Q3) & Memperluas pasar ke pekerja lapangan/teknisi (\textit{blue/grey-collar}). \\
+\textbf{Could Have} \newline (Ekspansi Produk) & Konektor Webhook HRIS (Mekari Talenta, SAP, Workday) & Fase 7 (Q4) & Meningkatkan retensi kontrak tahunan klien Enterprise B2B. \\
+\midrule
+\textbf{Won't Have} \newline (Ditunda Saat Ini) & Pelatihan Model LLM Mandiri (\textit{Self-Hosted Fine-Tuning}) & Ditunda ($>100$k user) & Menghindari biaya GPU tetap yang tinggi sebelum skala ekonomis tercapai. \\
+\bottomrule
+\end{longtable}
+
+\section{Struktur Rincian Kerja (\textit{Work Breakdown Structure} --- WBS) \& Peta Jalan 4 Kuartal}
+
+\begin{tabularx}{\textwidth}{C{1.8cm} L{3.8cm} L{4.2cm} X}
+\toprule
+\textbf{Fase / Kuartal} & \textbf{Tema Strategis} & \textbf{Deliverables Teknis Utama} & \textbf{Kriteria Penerimaan (Definition of Done)} \\
+\midrule
+\textbf{Fase 4} \newline (Q1 / Saat Ini) & \textbf{Omnichannel Loop \& Mobile Bridge} & Studio Misi Reviewer, ATS Lite HR, Riwayat Lamaran Pekerja, Device Token Manager, QR SVG Paspor Publik, PWA Manifest, Notifikasi Deep-Link. & Seluruh unit test \texttt{pytest} lulus 100\%, \texttt{npm run build} Next.js 16 sukses (0 error), siap dipakai produksi. \\
+\textbf{Fase 5} \newline (Q2) & \textbf{AI Authoring \& Full Localization} & Endpoint \texttt{POST /v1/admin/missions/generate-from-sop}, skrip \texttt{scripts.translate\_ref}, peningkatan rekomendasi hibrida \texttt{pgvector} + Jaccard. & Waktu pembuatan draf misi $< 15$ detik; $100\%$ jabatan ESCO memiliki terjemahan \texttt{label\_id} Bahasa Indonesia. \\
+\textbf{Fase 6} \newline (Q3) & \textbf{Native Flutter App \& Multimodal Evidence} & Aplikasi Android/iOS Flutter terintegrasi penuh, antrean sinkronisasi offline, unggah bukti gambar/audio terkompresi, Universal Links. & Skor stabilitas aplikasi (\textit{crash-free sessions}) $\ge 99{,}5\%$; sinkronisasi draf Web $\leftrightarrow$ Mobile $< 2$ detik. \\
+\textbf{Fase 7} \newline (Q4) & \textbf{Enterprise B2B \& Verifiable Credentials} & SAML/OIDC Single Sign-On, OpenBadges 3.0 cryptographic signature, Outbound Webhook HRIS, Laporan ROI Departemen Eksekutif. & Lulus audit keamanan pihak ketiga \& integrasi langsung dengan minimal 2 platform HRIS besar di Indonesia. \\
+\bottomrule
+\end{tabularx}
+
+\section{Analisis Keekonomian Unit (\textit{Unit Economics}) \& Struktur Biaya AI}
+Salah satu tanggung jawab terpenting CTO dan PM pada perusahaan berbasis AI adalah memastikan margin kotor (\textit{Gross Margin}) tetap sehat seiring bertambahnya pengguna:
+
+\begin{tabularx}{\textwidth}{L{4.8cm} R{3.0cm} R{3.0cm} X}
+\toprule
+\textbf{Komponen Operasi AI / Pengguna Aktif Bulanan} & \textbf{Volume Rata-Rata / Bulan} & \textbf{Estimasi Biaya (IDR)} & \textbf{Strategi Optimasi Biaya di \texttt{levelin-be}} \\
+\midrule
+Audit Tugas \& Narasi Ringkasan (\texttt{tier="main"} + \texttt{light}) & 1,5 sesi / bulan & Rp 320 & Menggunakan \texttt{tier="light"} untuk narasi penjelasan peta tugas dan rencana 4 minggu. \\
+Simulasi Chat Bos AI (SSE Streaming) & 12 pesan / bulan & Rp 780 & Batas \texttt{max\_tokens=4000} dengan \texttt{effort="low"} dan pembatasan kuota harian di \texttt{ratelimit.py}. \\
+Penilaian Rubrik Misi (\texttt{grading.py}) & 3 misi / bulan & Rp 450 & Pemeriksaan objektif dieksekusi oleh skrip Python gratis; LLM hanya menilai 4 kriteria rubrik ringkas. \\
+Pencarian Vektor \& Embedding (\texttt{voyage-3.5}) & 4 query / bulan & Rp 90 & Embedding referensi jabatan/skill dihitung sekali di awal (\textit{pre-computed}) melalui \texttt{scripts.embed\_reference}. \\
+\midrule
+\textbf{Total Biaya Variabel AI / Pengguna / Bulan} & --- & \textbf{$\approx$ Rp 1.640} & \textbf{Gross Margin $> 94\%$} terhadap harga langganan Pro (Rp 49.000/bulan) maupun paket B2B. \\
+\bottomrule
+\end{tabularx}
+
+\section{Matriks Indikator Kinerja Utama (\textit{Key Performance Indicators} --- KPI)}
+\begin{enumerate}[leftmargin=1.5em]
+    \item \textbf{North Star Metric (NSM)}: \textit{Jumlah Kredensial Keterampilan Terverifikasi yang Diterbitkan \& Dibagikan per Bulan} (\textit{Monthly Verified \& Shared Skill Credentials}).
+    \item \textbf{Metrik Akuisisi \& Aktivasi Pekerja (B2C)}:
+    \begin{itemize}
+        \item \textit{Audit-to-Plan Conversion Rate}: Persentase pengguna yang menyelesaikan Audit AI dan langsung mengaktifkan Rencana 4 Minggu (Target: $\ge 65\%$).
+        \item \textit{Mission Completion Rate}: Persentase percobaan misi yang dimulai (\texttt{in\_progress}) dan berhasil dikumpulkan hingga dinilai (\texttt{graded}) (Target: $\ge 70\%$).
+        \item \textit{Public Passport Share Rate}: Persentase pemilik paspor yang mengaktifkan tautan publik \texttt{/p/[slug]} atau mengunduh PDF ber-QR Code (Target: $\ge 45\%$).
+    \end{itemize}
+    \item \textbf{Metrik Nilai Korporat \& Rekrutmen (B2B HR)}:
+    \begin{itemize}
+        \item \textit{Custom Mission Fulfillment SLA}: Rata-rata waktu sejak HR mengirim pesanan SOP di \texttt{/hr/misi-kustom} hingga diterbitkan Reviewer di \texttt{/tinjau/misi} (Target: $< 24$ jam dengan Studio Misi).
+        \item \textit{Applicant-to-Interview Conversion Rate}: Persentase pelamar ber-Paspor Skill yang dinaikkan statusnya menjadi \texttt{shortlisted} / \texttt{interview} oleh HR di \texttt{/hr/lowongan} (Target: $\ge 35\%$, $3\times$ lebih tinggi dari lamaran CV biasa).
+    \end{itemize}
+\end{enumerate}
+
+\section{Matriks Risiko Operasional \& Mitigasi Teknis}
+
+\begin{riskbox}{Mitigasi Risiko Kritis Produksi}
+Seluruh ketergantungan eksternal (LLM Provider, Embedding API, Payment Gateway, dan Push Notification) pada \texttt{levelin-be} dirancang dengan pola \textbf{Circuit Breaker \& Deterministic Fallback} sehingga gangguan pada pihak ketiga tidak pernah menghentikan alur utama pengguna.
+\end{riskbox}
+
+\renewcommand{\arraystretch}{1.35}
+\begin{tabularx}{\textwidth}{L{3.5cm} C{1.8cm} C{1.8cm} X}
+\toprule
+\textbf{Identifikasi Risiko} & \textbf{Probabilitas} & \textbf{Dampak} & \textbf{Strategi Mitigasi yang Diterapkan} \\
+\midrule
+\textbf{Rate Limit / Gangguan Penyedia LLM atau Voyage AI (HTTP 429/5xx)} & Sedang & Tinggi & Sistem otomatis beralih ke mesin cadangan berbasis aturan (\texttt{engine="fallback"}) untuk audit, chat Bos AI, dan penilaian misi; untuk embedding, skrip menyimpan penanda \texttt{embedding\_model} per baris sehingga dapat dilanjutkan ulang (\textit{resumable}) kapan saja. \\
+\textbf{Bengkaknya Biaya Token akibat Penyalahgunaan API} & Sedang & Tinggi & Modul \texttt{app/core/ratelimit.py} membatasi panggilan AI harian per pengguna dan mencatat pemakaian token (\texttt{input\_tokens}, \texttt{output\_tokens}) secara presisi di tabel \texttt{ai\_usage}. \\
+\textbf{Kebocoran Kunci Jawaban Misi lewat Prompt Injection ke Bos AI} & Rendah & Kritis & Kunci jawaban tidak pernah dikirim ke klien; respons streaming Bos AI disaring per kalimat oleh \texttt{SentenceGuard} (\texttt{answer\_leak\_check}) dan di-reset seketika jika terdeteksi kebocoran. \\
+\textbf{Kehabisan Koneksi Database saat Lonjakan Trafik Bersama (Web + Mobile)} & Sedang & Tinggi & Trafik runtime diarahkan ke Supabase Transaction Pooler (\texttt{:6543}) dengan \texttt{statement\_cache\_size=0}, sedangkan operasi batch diarahkan ke Session Pooler (\texttt{:5432}). \\
+\bottomrule
+\end{tabularx}
+
+\vspace{1cm}
+\begin{center}
+\rule{0.6\textwidth}{0.6pt}\\[0.2cm]
+{\footnotesize\color{LevelinMuted}\textit{Akhir dari Dokumen Cetak Biru Korporat PT Levelin Teknologi Indonesia (Rev 4.0)}}
+\end{center}
+
+\end{document}
