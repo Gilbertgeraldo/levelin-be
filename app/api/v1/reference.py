@@ -3,12 +3,23 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Response
 from sqlalchemy import func, or_, select
 
-from app.api.deps import DB, Embeddings, Pagination, cache_public, is_postgres
+from app.api.deps import DB, LLM, CurrentUser, Embeddings, Pagination, cache_public, is_postgres
 from app.core.errors import not_found
 from app.core.pagination import Page, paginate_scalars
+from app.core.ratelimit import begin_ai_call, finish_ai_call
 from app.models import Occupation, OccupationTask, Skill
-from app.schemas.reference import NextRoleOut, OccupationDetail, OccupationOut, OccupationTasksOut, SkillOut
-from app.services import reference, scoring
+from app.schemas.reference import (
+    NextRoleOut,
+    OccupationDetail,
+    OccupationOut,
+    OccupationTasksOut,
+    SkillCoachOut,
+    SkillDrillCheckIn,
+    SkillDrillCheckOut,
+    SkillOut,
+)
+from app.services import coaching, reference, scoring
+from app.services.llm import LLMCallInfo
 
 router = APIRouter(tags=["Data referensi"])
 
@@ -102,7 +113,7 @@ async def get_next_roles(
     return await reference.next_roles(db, occupation, limit)
 
 
-@router.get("/skills", response_model=Page[SkillOut], summary="Daftar skill (label Indonesia)")
+@router.get("/skills", response_model=Page[SkillOut], summary="Daftar skill (label Indonesia bila tersedia)")
 async def list_skills(
     response: Response,
     db: DB,
@@ -110,12 +121,67 @@ async def list_skills(
     q: Annotated[str | None, Query(max_length=100)] = None,
     category: Annotated[str | None, Query(max_length=40)] = None,
 ):
-    stmt = select(Skill).order_by(Skill.label)
+    stmt = select(Skill).order_by(func.coalesce(Skill.label_id, Skill.label), Skill.id)
     if q:
-        like = f"%{q.lower()}%"
-        stmt = stmt.where(or_(func.lower(Skill.label).like(like), func.lower(Skill.label_en).like(like)))
+        like = f"%{q}%"
+        stmt = stmt.where(
+            or_(
+                Skill.label.ilike(like),
+                Skill.label_id.ilike(like),
+                Skill.label_en.ilike(like),
+            )
+        )
     if category:
         stmt = stmt.where(Skill.category == category)
     rows, meta = await paginate_scalars(db, stmt, page)
     cache_public(response, CACHE_SECONDS)
-    return {"data": rows, "meta": meta}
+    return {
+        "data": [
+            {
+                "id": s.id,
+                "label": s.label_id or s.label,
+                "label_en": s.label_en,
+                "category": s.category,
+                "esco_uri": s.esco_uri,
+            }
+            for s in rows
+        ],
+        "meta": meta,
+    }
+
+
+async def _skill(db, skill_id: int) -> Skill:
+    skill = await db.get(Skill, skill_id)
+    if skill is None:
+        raise not_found("Skill")
+    return skill
+
+
+@router.post(
+    "/skills/{skill_id}/coach",
+    response_model=SkillCoachOut,
+    summary="AI Skill Coach: panduan kerja 3 menit, rumus prompt AI, dan latihan mikro tanpa potong kuota misi",
+)
+async def skill_coach(skill_id: int, db: DB, user: CurrentUser, llm: LLM):
+    skill = await _skill(db, skill_id)
+    usage = await begin_ai_call(db, user.id, "coach")
+    info = LLMCallInfo()
+    result = await coaching.generate_skill_coach(db, user, skill, llm, info)
+    finish_ai_call(usage, result["engine"], info)
+    await db.commit()
+    return result
+
+
+@router.post(
+    "/skills/{skill_id}/drill-check",
+    response_model=SkillDrillCheckOut,
+    summary="Evaluasi instan jawaban latihan mikro (Micro-Drill) oleh AI Coach",
+)
+async def skill_drill_check(skill_id: int, body: SkillDrillCheckIn, db: DB, user: CurrentUser, llm: LLM):
+    skill = await _skill(db, skill_id)
+    usage = await begin_ai_call(db, user.id, "coach")
+    info = LLMCallInfo()
+    result = await coaching.evaluate_skill_drill(db, user, skill, body, llm, info)
+    finish_ai_call(usage, result["engine"], info)
+    await db.commit()
+    return result

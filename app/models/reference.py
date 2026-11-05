@@ -9,16 +9,19 @@ EMBEDDING_DIM = get_settings().embedding_dim
 
 
 class Occupation(Base):
-    """Jabatan KBJI (BPS) yang dipetakan ke ISCO-08."""
+    """Jabatan KBJI (BPS) / ESCO yang dipetakan ke ISCO-08."""
 
     __tablename__ = "occupations"
 
-    code: Mapped[str] = mapped_column(String(16), primary_key=True)  # kode KBJI
+    code: Mapped[str] = mapped_column(String(16), primary_key=True)  # kode KBJI / ESCO
+    esco_uri: Mapped[str | None] = mapped_column(String(255), unique=True)
     isco_code: Mapped[str] = mapped_column(String(8), index=True)
     title: Mapped[str] = mapped_column(String(255), index=True)
+    label_id: Mapped[str | None] = mapped_column(String(255))
     title_en: Mapped[str | None] = mapped_column(String(255))
     description: Mapped[str | None] = mapped_column(Text)
     aliases: Mapped[list] = mapped_column(JSONType, default=list)
+    search_text: Mapped[str | None] = mapped_column(Text)
     # Rata-rata skor paparan tugas (0-1) dan gradien ILO (0 = tidak terpapar, 1-4)
     avg_exposure: Mapped[float | None] = mapped_column(Float)
     exposure_gradient: Mapped[int | None] = mapped_column(Integer)
@@ -73,7 +76,9 @@ class Skill(Base):
     code: Mapped[str | None] = mapped_column(String(40), unique=True)
     esco_uri: Mapped[str | None] = mapped_column(String(255), unique=True)
     label: Mapped[str] = mapped_column(String(255), index=True)
+    label_id: Mapped[str | None] = mapped_column(String(255))
     label_en: Mapped[str | None] = mapped_column(String(255))
+    alt_labels: Mapped[list] = mapped_column(JSONType, default=list)
     # ai | digital | teknis | transversal
     category: Mapped[str] = mapped_column(String(40), default="teknis")
     description: Mapped[str | None] = mapped_column(Text)
@@ -82,9 +87,10 @@ class Skill(Base):
 class OccupationSkill(Base):
     __tablename__ = "occupation_skills"
 
-    isco_code: Mapped[str] = mapped_column(String(8), primary_key=True)
+    occupation_code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    isco_code: Mapped[str] = mapped_column(String(8), index=True)
     skill_id: Mapped[int] = mapped_column(
-        ForeignKey("skills.id", ondelete="CASCADE"), primary_key=True
+        ForeignKey("skills.id", ondelete="CASCADE"), primary_key=True, index=True
     )
     # essential | optional | base (skill dasar yang dianggap sudah dimiliki pemegang jabatan)
     relation: Mapped[str] = mapped_column(String(16), default="essential")

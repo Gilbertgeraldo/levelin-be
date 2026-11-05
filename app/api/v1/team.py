@@ -50,6 +50,7 @@ async def team_members(db: DB, manager: TeamManager):
             "role": m.role,
             "manager_names": [manager.full_name or manager.email or "Atasan"],
             "last_active_at": m.last_active_at,
+            "is_online": org.is_online(m.last_active_at),
         }
         for m in sorted(members, key=lambda m: (m.full_name or m.email or ""))
     ]

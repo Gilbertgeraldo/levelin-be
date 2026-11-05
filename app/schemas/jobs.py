@@ -24,6 +24,7 @@ class JobOut(BaseModel):
     posted_at: datetime
     expires_at: datetime | None
     skills: list[SkillRef]
+    applicant_count: int = 0
 
 
 class JobMatchOut(JobOut):
@@ -41,5 +42,19 @@ class ApplicationOut(BaseModel):
     id: uuid.UUID
     job_id: uuid.UUID
     status: str
+    passport_url: str | None
+    created_at: datetime
+
+
+class MyApplicationOut(BaseModel):
+    id: uuid.UUID
+    job_id: uuid.UUID
+    job_title: str
+    company: str
+    location: str | None
+    employment_type: str | None
+    is_internal: bool
+    status: str
+    cover_note: str | None
     passport_url: str | None
     created_at: datetime

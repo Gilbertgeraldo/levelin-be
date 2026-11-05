@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from app.schemas.common import SkillRef
 
 OrgRole = Literal["worker", "manager", "hr_admin"]
+ApplicationStatus = Literal["submitted", "shortlisted", "interview", "accepted", "rejected"]
 
 
 class GroupShare(BaseModel):
@@ -80,6 +81,7 @@ class MemberOut(BaseModel):
     role: str
     manager_names: list[str]
     last_active_at: datetime | None
+    is_online: bool = False
 
 
 class MemberPatch(BaseModel):
@@ -143,6 +145,22 @@ class CustomMissionOut(BaseModel):
     status: str
     mission_id: uuid.UUID | None
     created_at: datetime
+
+
+class JobApplicantOut(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    name: str
+    email: str | None
+    department: str | None
+    cover_note: str | None
+    passport_url: str | None
+    status: str
+    created_at: datetime
+
+
+class JobApplicantPatch(BaseModel):
+    status: ApplicationStatus
 
 
 class OrgJobIn(BaseModel):

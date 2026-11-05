@@ -2,6 +2,7 @@ import uuid
 from collections.abc import AsyncIterator
 
 from sqlalchemy import event
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
@@ -17,6 +18,9 @@ def build_engine(url: str | None = None, **kwargs) -> AsyncEngine:
             "statement_cache_size": 0,
             "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4()}__",
         }
+        # Cache statement milik SQLAlchemy juga harus mati, kalau tidak query gagal
+        # "prepared statement ... does not exist" saat koneksi berpindah di pooler.
+        url = make_url(url).update_query_dict({"prepared_statement_cache_size": "0"}).render_as_string(hide_password=False)
     engine = create_async_engine(
         url,
         echo=settings.db_echo,

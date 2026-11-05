@@ -17,6 +17,7 @@ pytestmark = pytest.mark.anyio
 
 HR = {"email": HR_EMAIL, "role": None, "name": "Hana Pratiwi"}
 MANAGER = {"email": MANAGER_EMAIL, "role": None, "name": "Ratna Wijaya"}
+REVIEWER = {"email": "reviewer@levelin.test", "role": "reviewer", "name": "Rudi Reviewer"}
 PDF = b"%PDF-1.4\n%demo\n"
 
 
@@ -103,7 +104,14 @@ async def test_candidates_members_and_invitations(client, sessionmaker):
 
     members = (await client.get("/v1/org/members", headers=h)).json()["data"]
     rina = next(m for m in members if m["email"] == "rina@sinar-distribusi.test")
-    assert set(rina) == {"user_id", "name", "email", "department", "role", "manager_names", "last_active_at"}
+    assert set(rina) == {"user_id", "name", "email", "department", "role", "manager_names", "last_active_at", "is_online"}
+    assert rina["is_online"] is True
+    await client.post("/v1/me/presence", headers=worker, json={"online": False})
+    rina_off = next(m for m in (await client.get("/v1/org/members", headers=h)).json()["data"] if m["user_id"] == rina["user_id"])
+    assert rina_off["is_online"] is False
+    await client.post("/v1/me/presence", headers=worker, json={"online": True})
+    rina_on = next(m for m in (await client.get("/v1/org/members", headers=h)).json()["data"] if m["user_id"] == rina["user_id"])
+    assert rina_on["is_online"] is True
     r = await client.patch(f"/v1/org/members/{rina['user_id']}", headers=h, json={"role": "manager"})
     assert r.json()["role"] == "manager"
     me = next(m for m in members if m["email"] == HR_EMAIL)
@@ -128,6 +136,161 @@ async def test_candidates_members_and_invitations(client, sessionmaker):
     assert r.status_code == 415
     r = await client.post("/v1/org/jobs", headers=h, json={"title": "Analis Data Internal", "skill_ids": [1]})
     assert r.status_code == 201 and r.json()["is_internal"] and r.json()["source"] == "internal"
+    job_id = r.json()["id"]
+    await client.post(f"/v1/jobs/{job_id}/apply", headers=worker, json={"cover_note": "Siap bergabung"})
+    org_jobs = (await client.get("/v1/org/jobs", headers=h)).json()["data"]
+    assert next(j for j in org_jobs if j["id"] == job_id)["applicant_count"] == 1
+    apps = (await client.get(f"/v1/org/jobs/{job_id}/applications", headers=h)).json()
+    assert len(apps) == 1 and apps[0]["name"] == "Rina Lestari" and apps[0]["cover_note"] == "Siap bergabung"
+
+    pending_org = (await client.get("/v1/org/invitations", headers=h, params={"status": "pending"})).json()["data"]
+    inv_a = next(i for i in pending_org if i["email"] == "a@uji.test")
+    assert (await client.delete(f"/v1/org/invitations/{inv_a['id']}", headers=h)).status_code == 204
+
+
+async def test_phase4_reviewer_mission_studio_ats_and_mobile_bridge(client):
+    h = auth(**HR)
+    worker = auth()
+    reviewer = auth(**REVIEWER)
+    await client.get("/v1/me", headers=h)
+    await onboard(client, worker)
+    await client.patch("/v1/passport/sharing", headers=worker, json={"share_with_org": True, "public_link": True})
+
+    # 1. HR memesan misi kustom SOP -> Reviewer melihat di /v1/admin/custom-missions -> Menerbitkan misi
+    cm_res = await client.post(
+        "/v1/org/custom-missions",
+        headers=h,
+        data={"title": "SOP Rekonsiliasi Kas Harian", "description": "Verifikasi selisih kas akhir hari", "target_role": "Staf Keuangan"},
+        files={"file": ("sop-kas.pdf", PDF, "application/pdf")},
+    )
+    assert cm_res.status_code == 201
+    cm_id = cm_res.json()["id"]
+
+    admin_cms = (await client.get("/v1/admin/custom-missions", headers=reviewer)).json()["data"]
+    found_cm = next(c for c in admin_cms if c["id"] == cm_id)
+    assert found_cm["org_name"] == "PT Sinar Distribusi" and found_cm["status"] == "requested"
+
+    pub_res = await client.post(
+        "/v1/admin/missions",
+        headers=reviewer,
+        json={
+            "slug": "sop-rekonsiliasi-kas-harian",
+            "title": "Simulasi Rekonsiliasi Kas Harian",
+            "summary": "Latihan verifikasi kas sesuai SOP PT Sinar Distribusi",
+            "brief": "Periksa laporan kas harian dan temukan penyebab selisih Rp 250.000.",
+            "answer_fields": [{"id": "temuan", "label": "Temuan & Rekomendasi", "type": "long_text", "rows": 5}],
+            "rubric": [{"id": "r1", "criterion": "Ketepatan Analisis Selisih"}],
+            "answer_key": [],
+            "skill_ids": [1],
+            "custom_request_id": cm_id,
+            "is_published": True,
+        },
+    )
+    assert pub_res.status_code == 201
+    mission_id = pub_res.json()["id"]
+
+    admin_missions = (await client.get("/v1/admin/missions", headers=reviewer)).json()["data"]
+    assert any(m["id"] == mission_id and m["slug"] == "sop-rekonsiliasi-kas-harian" for m in admin_missions)
+
+    hr_cms = (await client.get("/v1/org/custom-missions", headers=h)).json()["data"]
+    assert next(c for c in hr_cms if c["id"] == cm_id)["status"] == "published"
+
+    hr_notes = (await client.get("/v1/notifications", headers=h)).json()["data"]
+    assert any(n["type"] == "custom_mission" and n["data"].get("mission_id") == mission_id for n in hr_notes)
+
+    # 2. ATS Lite HR & Riwayat Lamaran Pekerja (/v1/me/applications)
+    job_res = await client.post("/v1/org/jobs", headers=h, json={"title": "Supervisor Keuangan", "skill_ids": [1]})
+    job_id = job_res.json()["id"]
+    app_res = await client.post(f"/v1/jobs/{job_id}/apply", headers=worker, json={"cover_note": "Berpengalaman 3 tahun"})
+    assert app_res.status_code == 201
+    app_id = app_res.json()["id"]
+
+    my_apps = (await client.get("/v1/me/applications", headers=worker)).json()
+    assert len(my_apps) == 1 and my_apps[0]["job_title"] == "Supervisor Keuangan" and my_apps[0]["status"] == "submitted"
+
+    patch_res = await client.patch(
+        f"/v1/org/jobs/{job_id}/applications/{app_id}",
+        headers=h,
+        json={"status": "interview"},
+    )
+    assert patch_res.status_code == 200 and patch_res.json()["status"] == "interview"
+
+    my_apps_after = (await client.get("/v1/me/applications", headers=worker)).json()
+    assert my_apps_after[0]["status"] == "interview"
+
+    worker_notes = (await client.get("/v1/notifications", headers=worker)).json()["data"]
+    assert any(n["type"] == "application_status" and n["data"].get("status") == "interview" for n in worker_notes)
+
+    # 3. Manajemen Perangkat Mobile (/v1/me/device-tokens) & Read-All Notifications (/v1/notifications/read-all)
+    tok = "fcm_token_android_levelin_device_001"
+    reg = await client.post("/v1/me/device-tokens", headers=worker, json={"token": tok, "platform": "android"})
+    assert reg.status_code == 201
+    devices = (await client.get("/v1/me/device-tokens", headers=worker)).json()
+    assert len(devices) == 1 and devices[0]["platform"] == "android" and devices[0]["token"] == tok
+
+    read_all = (await client.post("/v1/notifications/read-all", headers=worker)).json()
+    assert read_all["updated"] >= 1
+    unread_after = (await client.get("/v1/notifications", headers=worker, params={"unread_only": True})).json()["data"]
+    assert unread_after == []
+
+
+async def test_phase5_skill_coach_micro_drill_and_sop_mission_generator(client):
+    worker = auth()
+    reviewer = auth(**REVIEWER)
+    await onboard(client, worker)
+
+    before_quota = (await client.get("/v1/me", headers=worker)).json()["subscription"]["remaining"]
+
+    # 1. AI Skill Coach (/v1/skills/1/coach)
+    coach_res = await client.post("/v1/skills/1/coach", headers=worker)
+    assert coach_res.status_code == 200
+    coach = coach_res.json()
+    assert coach["skill"]["id"] == 1
+    assert len(coach["key_steps"]) >= 3
+    assert len(coach["prompt_templates"]) >= 2
+    assert "scenario" in coach["micro_drill"] and "question" in coach["micro_drill"]
+
+    # 2. Evaluasi Micro-Drill (/v1/skills/1/drill-check) tanpa memotong kuota misi
+    drill_res = await client.post(
+        "/v1/skills/1/drill-check",
+        headers=worker,
+        json={
+            "scenario": coach["micro_drill"]["scenario"],
+            "question": coach["micro_drill"]["question"],
+            "answer": (
+                "Saya akan melakukan verifikasi silang terhadap data laporan utama sesuai SOP perusahaan, "
+                "menggunakan prompt AI untuk memetakan anomali dan memeriksa ulang akurasi angkanya, "
+                "lalu menyampaikan rekomendasi solusi prioritas beserta mitigasi risiko kepada atasan."
+            ),
+        },
+    )
+    assert drill_res.status_code == 200
+    drill = drill_res.json()
+    assert drill["skill_id"] == 1
+    assert drill["score"] >= 70 and drill["ready_for_mission"] is True
+    assert len(drill["strengths"]) >= 1 and len(drill["model_answer"]) >= 20
+
+    after_quota = (await client.get("/v1/me", headers=worker)).json()["subscription"]["remaining"]
+    assert after_quota == before_quota  # Kuota misi tetap utuh!
+
+    # 3. AI Corporate SOP-to-Mission Generator (/v1/admin/missions/generate)
+    gen_res = await client.post(
+        "/v1/admin/missions/generate",
+        headers=reviewer,
+        json={
+            "title": "SOP Audit Kepatuhan Gudang & Inventaris",
+            "description": "Pemeriksaan selisih stok barang masuk/keluar dan eskalasi barang rusak maksimal 2x24 jam.",
+            "target_role": "Supervisor Logistik",
+            "difficulty": 2,
+        },
+    )
+    assert gen_res.status_code == 200
+    gen = gen_res.json()
+    assert gen["slug"].startswith("sop-audit-kepatuhan-gudang")
+    assert len(gen["simulation_data"]["headers"]) >= 3
+    assert len(gen["simulation_data"]["rows"]) >= 2
+    assert len(gen["answer_fields"]) >= 2
+    assert len(gen["rubric"]) >= 2
 
 
 async def test_manager_invites_team_and_sees_only_aggregates(client, sessionmaker):

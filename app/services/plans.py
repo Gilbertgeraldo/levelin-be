@@ -40,7 +40,7 @@ def occupation_brief(occupation: Occupation | None) -> dict | None:
         return None
     return {
         "code": occupation.code,
-        "name": occupation.title,
+        "name": occupation.label_id or occupation.title,
         "mean": occupation.avg_exposure,
         "gradient_label": gradient_label(occupation),
     }
@@ -66,7 +66,11 @@ async def needed_skill_codes(db: AsyncSession, audit: Audit, target: Occupation 
         rows = await db.scalars(
             select(Skill.code)
             .join(OccupationSkill, OccupationSkill.skill_id == Skill.id)
-            .where(OccupationSkill.isco_code == target.isco_code, OccupationSkill.relation == "essential")
+            .where(
+                OccupationSkill.isco_code == target.isco_code,
+                OccupationSkill.relation == "essential",
+                Skill.code.is_not(None),
+            )
             .order_by(Skill.id)
         )
         codes = list(rows.all())
